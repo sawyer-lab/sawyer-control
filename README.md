@@ -1,59 +1,87 @@
 # Sawyer Control
 
-Standalone private control platform for a physical Rethink Sawyer. The bridge
-runs the ROS 1 Intera stack inside a container; applications use the versioned
-gRPC protocol and do not need ROS installed locally.
+Standalone control platform for a physical Rethink Sawyer. ROS 1 and Intera
+run inside the bridge container; user programs communicate through versioned
+gRPC and do not need ROS installed locally.
 
-## Start
+## For robot users
+
+On the computer connected to the robot, start the bridge with one command:
 
 ```bash
 ./sawyer-control up
 ```
 
-The first run asks only for the robot hostname and optional network hints, then
-stores them in `~/.config/sawyer-control/runtime.env`. Each later run discovers
-the robot again, opens the necessary host firewall route, and reuses a healthy
-bridge with the same robot and host network identity. When the discovered
-network identity changes, Compose updates the bridge automatically.
+The initial invocation asks for the robot hostname and optional network hints,
+then stores them under `~/.config/sawyer-control/runtime.env`. Later invocations
+rediscover the robot and reuse or update the bridge as needed.
 
-## Python client
+Create a new Python environment:
+
+```bash
+./scripts/setup_python.sh
+source .venv/bin/activate
+```
+
+Or install into an environment that already exists:
+
+```bash
+python -m pip install -e .
+```
+
+Run the read-only inspection demo first:
+
+```bash
+python scripts/demo/inspect_robot.py
+```
+
+The full setup, hardware demos, and C++/C# instructions are in
+[docs/USAGE.md](docs/USAGE.md).
+
+## Python API
 
 ```python
 from sawyer_control import CameraClient, ForceTorqueClient, SawyerRobotClient
 
 with SawyerRobotClient.connect() as robot:
-    robot.enable()
-    robot.move_to([0.0, -0.78, 0.0, 1.55, 0.0, 0.78, 3.14])
+    state = robot.get_state()
 
 with CameraClient.connect() as camera:
-    hand_frame = camera.read_hand()
+    camera.start_hand()
+    frame = camera.read_hand()
 
 with ForceTorqueClient.connect() as force_torque:
-    print(force_torque.read())
+    reading = force_torque.read()
 ```
 
-`SawyerRobotClient`, `CameraClient`, and `ForceTorqueClient` are separate
-clients. They share one bridge address but only the robot client can command
-motion.
+`SawyerRobotClient`, `CameraClient`, and `ForceTorqueClient` are independent
+clients. Only the robot client carries motion and lifecycle commands.
 
-For a raw time-indexed joint command batch, use `execute_sequence` with one of
-the protocol control modes: position, velocity, torque, or trajectory.
+The bridge never enables, resets, stops, moves, or zeroes hardware unless a
+client explicitly calls the corresponding operation. `execute_sequence` is the
+generic raw batch operation for position, velocity, torque, or trajectory-mode
+joint commands.
 
-## API and language support
+## Languages and API contract
 
 [`proto/sawyer_control/v1/control.proto`](proto/sawyer_control/v1/control.proto)
-is the canonical public contract. The included Python package is a thin,
-friendly wrapper around generated gRPC code. The same protobuf definition can
-generate C++, C#, Go, Java, Rust, and other gRPC clients without changing the
-bridge.
+is the canonical contract. The included Python package is a thin friendly
+wrapper; gRPC generates native C++, C#, Go, Java, Rust, and other clients from
+the same file. Read-only C++ and C# examples are included under
+[`examples`](examples).
 
-## Local development
+To distribute this private repository after the first hardware validation, tag
+a release and let users install that exact Git revision with pip. The command is
+included in [docs/USAGE.md](docs/USAGE.md); publishing a package registry is not
+required.
+
+## Development
 
 ```bash
 /home/fausto/miniconda3/envs/tossing/bin/python -m pip install -e '.[dev]'
 /home/fausto/miniconda3/envs/tossing/bin/python -m pytest
 ```
 
-No robot is contacted by the test suite. First hardware validation is manual:
-verify state, cameras, and force/torque reads before deliberately issuing a
-small supervised motion command.
+Tests do not contact a robot. Validate live hardware progressively: inspect
+state, then camera and force/torque reads, then deliberately issue a supervised
+gripper or motion command.

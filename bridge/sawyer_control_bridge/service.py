@@ -189,6 +189,12 @@ class CameraService(control_pb2_grpc.CameraServicer):
     def GetFrame(self, request, context):
         return _camera_frame(self._runtime, request.camera, context)
 
+    def Start(self, request, context):
+        return _result(_camera(self._runtime, request.camera, context).start())
+
+    def Stop(self, request, context):
+        return _result(_camera(self._runtime, request.camera, context).stop())
+
     def StreamFrames(self, request, context):
         rate_hz = _stream_rate(request.rate_hz, context, 15.0)
         while context.is_active():
@@ -222,16 +228,20 @@ def _ft_reading(runtime, context):
 
 
 def _camera_frame(runtime, camera_id, context):
-    camera_name = {control_pb2.HEAD: "head", control_pb2.HAND: "hand"}.get(camera_id)
-    if camera_name is None:
-        context.abort(grpc.StatusCode.INVALID_ARGUMENT, "A head or hand camera is required")
-    camera = runtime.cameras[camera_name]
+    camera = _camera(runtime, camera_id, context)
     data = camera.get_image_compressed()
     image = camera.get_image()
     if data is None or image is None:
         context.abort(grpc.StatusCode.UNAVAILABLE, f"{camera_name} camera has no frame")
     height, width = image.shape[:2]
     return control_pb2.ImageFrame(data=data, encoding="jpeg", width=width, height=height, timestamp_s=time.time())
+
+
+def _camera(runtime, camera_id, context):
+    camera_name = {control_pb2.HEAD: "head", control_pb2.HAND: "hand"}.get(camera_id)
+    if camera_name is None:
+        context.abort(grpc.StatusCode.INVALID_ARGUMENT, "A head or hand camera is required")
+    return runtime.cameras[camera_name]
 
 
 def _robot_state(raw):

@@ -19,7 +19,7 @@ service RobotControl {
   rpc GetGripperState(Empty) returns (GripperState);
 }
 service ForceTorque { rpc GetReading(Empty) returns (ForceTorqueReading); rpc StreamReadings(StreamReadingsRequest) returns (stream ForceTorqueReading); rpc Zero(Empty) returns (CommandResult); }
-service Camera { rpc GetFrame(CameraRequest) returns (ImageFrame); rpc StreamFrames(CameraStreamRequest) returns (stream ImageFrame); }
+service Camera { rpc Start(CameraRequest) returns (CommandResult); rpc Stop(CameraRequest) returns (CommandResult); rpc GetFrame(CameraRequest) returns (ImageFrame); rpc StreamFrames(CameraStreamRequest) returns (stream ImageFrame); }
 
 message Empty {}
 message HealthRequest {}

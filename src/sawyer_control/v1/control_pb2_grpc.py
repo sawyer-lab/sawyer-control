@@ -866,6 +866,16 @@ class CameraStub(object):
         Args:
             channel: A grpc.Channel.
         """
+        self.Start = channel.unary_unary(
+                '/sawyer.control.v1.Camera/Start',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.CameraRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.CommandResult.FromString,
+                _registered_method=True)
+        self.Stop = channel.unary_unary(
+                '/sawyer.control.v1.Camera/Stop',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.CameraRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.CommandResult.FromString,
+                _registered_method=True)
         self.GetFrame = channel.unary_unary(
                 '/sawyer.control.v1.Camera/GetFrame',
                 request_serializer=sawyer__control_dot_v1_dot_control__pb2.CameraRequest.SerializeToString,
@@ -880,6 +890,18 @@ class CameraStub(object):
 
 class CameraServicer(object):
     """Missing associated documentation comment in .proto file."""
+
+    def Start(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Stop(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def GetFrame(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -896,6 +918,16 @@ class CameraServicer(object):
 
 def add_CameraServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'Start': grpc.unary_unary_rpc_method_handler(
+                    servicer.Start,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.CameraRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.CommandResult.SerializeToString,
+            ),
+            'Stop': grpc.unary_unary_rpc_method_handler(
+                    servicer.Stop,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.CameraRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.CommandResult.SerializeToString,
+            ),
             'GetFrame': grpc.unary_unary_rpc_method_handler(
                     servicer.GetFrame,
                     request_deserializer=sawyer__control_dot_v1_dot_control__pb2.CameraRequest.FromString,
@@ -916,6 +948,60 @@ def add_CameraServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class Camera(object):
     """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def Start(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.Camera/Start',
+            sawyer__control_dot_v1_dot_control__pb2.CameraRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.CommandResult.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Stop(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.Camera/Stop',
+            sawyer__control_dot_v1_dot_control__pb2.CameraRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.CommandResult.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def GetFrame(request,

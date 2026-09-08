@@ -39,6 +39,12 @@ class _ForceTorque(control_pb2_grpc.ForceTorqueServicer):
 
 
 class _Camera(control_pb2_grpc.CameraServicer):
+    def Start(self, request, context):
+        return control_pb2.CommandResult(success=True)
+
+    def Stop(self, request, context):
+        return control_pb2.CommandResult(success=True)
+
     def GetFrame(self, request, context):
         return control_pb2.ImageFrame(data=b"frame", encoding="jpeg", width=2, height=1)
 
@@ -71,5 +77,7 @@ def test_sensor_clients_are_independent(address):
         assert force_torque.read().fz == 3.5
         force_torque.zero()
     with CameraClient.connect(address) as camera:
+        camera.start_hand()
         assert camera.read_hand().data == b"frame"
         assert camera.read_head().width == 2
+        camera.stop_hand()

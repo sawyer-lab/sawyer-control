@@ -162,6 +162,18 @@ class CameraClient(_Client):
     def read_head(self):
         return self._api.GetFrame(control_pb2.CameraRequest(camera=control_pb2.HEAD))
 
+    def start_hand(self) -> None:
+        SawyerRobotClient._require(self._api.Start(control_pb2.CameraRequest(camera=control_pb2.HAND)))
+
+    def stop_hand(self) -> None:
+        SawyerRobotClient._require(self._api.Stop(control_pb2.CameraRequest(camera=control_pb2.HAND)))
+
+    def start_head(self) -> None:
+        SawyerRobotClient._require(self._api.Start(control_pb2.CameraRequest(camera=control_pb2.HEAD)))
+
+    def stop_head(self) -> None:
+        SawyerRobotClient._require(self._api.Stop(control_pb2.CameraRequest(camera=control_pb2.HEAD)))
+
     def hand_frames(self, rate_hz: float = 15.0):
         return self._api.StreamFrames(control_pb2.CameraStreamRequest(camera=control_pb2.HAND, rate_hz=rate_hz))
 
