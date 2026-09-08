@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Local Docker overrides — machine-specific, never commit
+docker/docker-compose.override.yml

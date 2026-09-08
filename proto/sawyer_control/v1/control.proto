@@ -1,0 +1,49 @@
+syntax = "proto3";
+package sawyer.control.v1;
+
+service RobotControl {
+  rpc Health(HealthRequest) returns (HealthReply);
+  rpc GetState(Empty) returns (RobotState);
+  rpc StreamState(StreamStateRequest) returns (stream RobotState);
+  rpc GetPose(Empty) returns (Pose);
+  rpc MoveTo(MoveToRequest) returns (CommandResult);
+  rpc CommandJoints(JointCommandRequest) returns (CommandResult);
+  rpc StartSequence(SequenceRequest) returns (Operation);
+  rpc GetOperation(OperationRequest) returns (OperationStatus);
+  rpc Stop(StopRequest) returns (CommandResult);
+  rpc Enable(Empty) returns (CommandResult);
+  rpc Disable(Empty) returns (CommandResult);
+  rpc Reset(Empty) returns (CommandResult);
+  rpc OpenGripper(Empty) returns (CommandResult);
+  rpc CloseGripper(Empty) returns (CommandResult);
+  rpc GetGripperState(Empty) returns (GripperState);
+}
+service ForceTorque { rpc GetReading(Empty) returns (ForceTorqueReading); rpc StreamReadings(StreamReadingsRequest) returns (stream ForceTorqueReading); rpc Zero(Empty) returns (CommandResult); }
+service Camera { rpc GetFrame(CameraRequest) returns (ImageFrame); rpc StreamFrames(CameraStreamRequest) returns (stream ImageFrame); }
+
+message Empty {}
+message HealthRequest {}
+message HealthReply { string protocol_version = 1; string bridge_version = 2; }
+message JointVector { repeated double values = 1; }
+message Position { double x = 1; double y = 2; double z = 3; }
+message Quaternion { double x = 1; double y = 2; double z = 3; double w = 4; }
+message Pose { Position position = 1; Quaternion orientation = 2; }
+message RobotState { double timestamp_s = 1; JointVector positions = 2; JointVector velocities = 3; JointVector efforts = 4; Pose pose = 5; bool enabled = 6; bool stopped = 7; }
+enum ControlMode { CONTROL_MODE_UNSPECIFIED = 0; POSITION = 1; VELOCITY = 2; TORQUE = 3; TRAJECTORY = 4; }
+message JointCommandSample { JointVector position = 1; JointVector velocity = 2; JointVector effort = 3; JointVector acceleration = 4; }
+message MoveToRequest { JointVector target = 1; double timeout_s = 2; }
+message JointCommandRequest { ControlMode mode = 1; JointCommandSample sample = 2; }
+message SequenceRequest { ControlMode mode = 1; repeated JointCommandSample samples = 2; double rate_hz = 3; }
+message CommandResult { bool success = 1; string message = 2; }
+message Operation { string id = 1; }
+message OperationRequest { string id = 1; }
+message OperationStatus { string id = 1; string phase = 2; string message = 3; }
+message StopRequest {}
+message StreamStateRequest { double rate_hz = 1; }
+message StreamReadingsRequest { double rate_hz = 1; }
+message GripperState { double position = 1; bool grasping = 2; string state = 3; }
+message ForceTorqueReading { double fx = 1; double fy = 2; double fz = 3; double tx = 4; double ty = 5; double tz = 6; uint64 sequence = 7; uint32 status = 8; double timestamp_s = 9; }
+enum CameraId { CAMERA_ID_UNSPECIFIED = 0; HEAD = 1; HAND = 2; }
+message CameraRequest { CameraId camera = 1; }
+message CameraStreamRequest { CameraId camera = 1; double rate_hz = 2; }
+message ImageFrame { bytes data = 1; string encoding = 2; uint32 width = 3; uint32 height = 4; double timestamp_s = 5; }
