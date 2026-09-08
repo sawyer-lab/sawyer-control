@@ -81,3 +81,6 @@ def test_sensor_clients_are_independent(address):
         assert camera.read_hand().data == b"frame"
         assert camera.read_head().width == 2
         camera.stop_hand()
+        camera.start_brio()
+        assert camera.read_brio().height == 1
+        camera.stop_brio()

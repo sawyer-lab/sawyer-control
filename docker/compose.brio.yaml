@@ -1,0 +1,6 @@
+services:
+  bridge:
+    environment:
+      BRIO_DEVICE: /dev/brio
+    devices:
+      - ${BRIO_DEVICE}:/dev/brio

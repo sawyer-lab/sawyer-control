@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from robot_api.hardware.camera import Camera
+from robot_api.hardware.brio import BrioCamera
 from robot_api.hardware.ft_sensor import FTSensorManager
 from robot_api.hardware.gripper import Gripper
 from robot_api.hardware.robot import Robot
@@ -26,6 +27,7 @@ class Runtime:
     cameras: Dict[str, Camera]
     gripper: Optional[Gripper] = None
     ft: Optional[FTSensorManager] = None
+    brio: Optional[BrioCamera] = None
     _ft_initialized: bool = False
     _hardware_lock: threading.Lock = field(default_factory=threading.Lock)
 
@@ -49,6 +51,12 @@ class Runtime:
                 self.ft = _optional(FTSensorManager)
                 self._ft_initialized = True
             return self.ft
+
+    def get_brio(self) -> BrioCamera:
+        with self._hardware_lock:
+            if self.brio is None:
+                self.brio = BrioCamera()
+            return self.brio
 
     def state(self) -> dict:
         state = self.robot.get_state()

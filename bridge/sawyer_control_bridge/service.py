@@ -239,9 +239,14 @@ def _camera_frame(runtime, camera_id, context):
 
 def _camera(runtime, camera_id, context):
     camera_name = {control_pb2.HEAD: "head", control_pb2.HAND: "hand"}.get(camera_id)
-    if camera_name is None:
-        context.abort(grpc.StatusCode.INVALID_ARGUMENT, "A head or hand camera is required")
-    return runtime.cameras[camera_name]
+    if camera_name is not None:
+        return runtime.cameras[camera_name]
+    if camera_id == control_pb2.BRIO:
+        try:
+            return runtime.get_brio()
+        except RuntimeError as error:
+            context.abort(grpc.StatusCode.UNAVAILABLE, str(error))
+    context.abort(grpc.StatusCode.INVALID_ARGUMENT, "A head, hand, or Brio camera is required")
 
 
 def _robot_state(raw):

@@ -43,7 +43,7 @@ message StreamStateRequest { double rate_hz = 1; }
 message StreamReadingsRequest { double rate_hz = 1; }
 message GripperState { double position = 1; bool grasping = 2; string state = 3; }
 message ForceTorqueReading { double fx = 1; double fy = 2; double fz = 3; double tx = 4; double ty = 5; double tz = 6; uint64 sequence = 7; uint32 status = 8; double timestamp_s = 9; }
-enum CameraId { CAMERA_ID_UNSPECIFIED = 0; HEAD = 1; HAND = 2; }
+enum CameraId { CAMERA_ID_UNSPECIFIED = 0; HEAD = 1; HAND = 2; BRIO = 3; }
 message CameraRequest { CameraId camera = 1; }
 message CameraStreamRequest { CameraId camera = 1; double rate_hz = 2; }
 message ImageFrame { bytes data = 1; string encoding = 2; uint32 width = 3; uint32 height = 4; double timestamp_s = 5; }

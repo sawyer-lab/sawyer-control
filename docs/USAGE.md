@@ -36,6 +36,7 @@ stops, moves, or zeroes hardware implicitly.
 ```bash
 python scripts/demo/inspect_robot.py
 python scripts/demo/camera.py hand --output hand.jpg
+python scripts/demo/camera.py brio --output brio.jpg
 python scripts/demo/gripper.py state
 python scripts/demo/gripper.py open
 python scripts/demo/force_torque.py read
@@ -47,6 +48,20 @@ python scripts/demo/robot.py move --target '0,-0.78,0,1.55,0,0.78,3.14'
 `camera.py` explicitly starts the requested camera. It leaves it running unless
 `--stop-after` is passed. `robot.py move` does not enable the robot first; use
 the explicit `robot.py enable` command when appropriate.
+
+## Logitech Brio
+
+Connect the Brio directly to the bridge host. `./sawyer-control up` discovers a
+Logitech Brio UVC video device and mounts it into the bridge only when present.
+When automatic discovery cannot distinguish the intended video node, set its
+host device path in `~/.config/sawyer-control/runtime.env`:
+
+```bash
+BRIO_DEVICE=/dev/v4l/by-id/usb-Logitech_BRIO-video-index0
+```
+
+Restart the bridge command after changing that setting. The Brio opens only
+after `CameraClient.start_brio()` or the explicit `camera.py brio` demo.
 
 ## C++
 

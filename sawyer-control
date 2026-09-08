@@ -30,20 +30,31 @@ if [[ ! -f "$CONFIG" ]]; then
 fi
 
 source "$CONFIG"
-export ROBOT_HOSTNAME ROBOT_IP_HINT HOST_IP_HINT
+BRIO_DEVICE="${BRIO_DEVICE:-}"
+export ROBOT_HOSTNAME ROBOT_IP_HINT HOST_IP_HINT BRIO_DEVICE
 discovery="$($ROOT/docker/find_robot.sh)"
 umask 077
 printf '%s\n' "$discovery" > "$RUNTIME"
+if detected_brio="$($ROOT/docker/find_brio.sh)"; then
+    printf 'BRIO_DEVICE=%q\n' "$detected_brio" >> "$RUNTIME"
+else
+    printf 'BRIO_DEVICE=%q\n' "" >> "$RUNTIME"
+fi
 source "$RUNTIME"
-export ROBOT_IP HOST_IP ROBOT_IFACE ROBOT_HOSTNAME
+export ROBOT_IP HOST_IP ROBOT_IFACE ROBOT_HOSTNAME BRIO_DEVICE
 
 "$ROOT/docker/allow_robot_traffic.sh" "$ROBOT_IFACE"
 compose=(docker compose -p sawyer-control --env-file "$RUNTIME" -f "$ROOT/docker/compose.yaml")
+if [[ -n "$BRIO_DEVICE" ]]; then
+    compose+=(-f "$ROOT/docker/compose.brio.yaml")
+fi
 container_id="$("${compose[@]}" ps -q bridge)"
 if [[ -n "$container_id" ]]; then
     current_robot="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container_id" | awk -F= '$1 == "ROBOT_IP" {print $2}')"
     current_host="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container_id" | awk -F= '$1 == "HOST_IP" {print $2}')"
+    current_brio="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$container_id" | awk -F= '$1 == "BRIO_DEVICE" {print $2}')"
     if [[ "$current_robot" == "$ROBOT_IP" && "$current_host" == "$HOST_IP" ]] \
+        && { [[ -z "$BRIO_DEVICE" && -z "$current_brio" ]] || [[ -n "$BRIO_DEVICE" && "$current_brio" == /dev/brio ]]; } \
         && "${compose[@]}" exec -T bridge python3 -m sawyer_control.cli health; then
         exit 0
     fi

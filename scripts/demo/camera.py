@@ -10,7 +10,7 @@ from sawyer_control import CameraClient
 
 def main():
     parser = argparse.ArgumentParser(description="Capture one head or hand camera frame.")
-    parser.add_argument("camera", choices=("head", "hand"))
+    parser.add_argument("camera", choices=("head", "hand", "brio"))
     parser.add_argument("--output", type=Path, default=Path("frame.jpg"))
     parser.add_argument("--address", default="127.0.0.1:50051")
     parser.add_argument("--stop-after", action="store_true")
