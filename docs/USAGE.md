@@ -6,6 +6,10 @@ Start the bridge on the computer physically connected to the robot:
 ./sawyer-control up
 ```
 
+The invoking user must be able to access `/var/run/docker.sock`. If Docker is
+installed but reports a socket permission error, run
+`sudo usermod -aG docker $USER` once, then begin a new login session.
+
 The bridge listens on `127.0.0.1:50051`. Run host applications on that same
 computer, or explicitly use the address where you expose the bridge.
 

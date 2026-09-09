@@ -12,6 +12,10 @@ On the computer connected to the robot, start the bridge with one command:
 ./sawyer-control up
 ```
 
+The user running that command needs access to Docker. On a newly configured
+host, an administrator can grant it once with
+`sudo usermod -aG docker $USER`; log out and back in before continuing.
+
 The launcher uses this Sawyer's fixed hostname and discovers its network route
 without prompting. Later invocations rediscover the robot and reuse or update
 the bridge as needed. Optional local overrides belong in
