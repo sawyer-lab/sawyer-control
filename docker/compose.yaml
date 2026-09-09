@@ -4,6 +4,8 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     network_mode: host
+    extra_hosts:
+      - "${ROBOT_HOSTNAME}:${ROBOT_IP}"
     environment:
       ROBOT_IP: ${ROBOT_IP:?ROBOT_IP is required}
       HOST_IP: ${HOST_IP:?HOST_IP is required}
