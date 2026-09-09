@@ -16,13 +16,14 @@ mkdir -p "$CONFIG_DIR"
 ROBOT_IP_HINT=""
 HOST_IP_HINT=""
 BRIO_DEVICE=""
+FIREWALL_IFACE=""
 if [[ -f "$CONFIG" ]]; then
     source "$CONFIG"
 fi
 
 ROBOT_HOSTNAME="021607CP00070.local"
 BRIO_DEVICE="${BRIO_DEVICE:-}"
-export ROBOT_HOSTNAME ROBOT_IP_HINT HOST_IP_HINT BRIO_DEVICE
+export ROBOT_HOSTNAME ROBOT_IP_HINT HOST_IP_HINT BRIO_DEVICE FIREWALL_IFACE
 discovery="$($ROOT/docker/find_robot.sh)"
 umask 077
 printf '%s\n' "$discovery" > "$RUNTIME"
@@ -40,7 +41,11 @@ if ! docker info >/dev/null 2>&1; then
     exit 1
 fi
 
-"$ROOT/docker/allow_robot_traffic.sh" "$ROBOT_IFACE"
+if [[ "$FIREWALL_IFACE" != "$ROBOT_IFACE" ]]; then
+    "$ROOT/docker/allow_robot_traffic.sh" "$ROBOT_IFACE"
+    umask 077
+    printf 'FIREWALL_IFACE=%q\n' "$ROBOT_IFACE" >> "$CONFIG"
+fi
 compose=(docker compose -p sawyer-control --env-file "$RUNTIME" -f "$ROOT/docker/compose.yaml")
 if [[ -n "$BRIO_DEVICE" ]]; then
     compose+=(-f "$ROOT/docker/compose.brio.yaml")
@@ -57,5 +62,18 @@ if [[ -n "$container_id" ]]; then
     fi
 fi
 
+wait_for_bridge() {
+    local attempt
+    for attempt in $(seq 1 30); do
+        if "${compose[@]}" exec -T bridge python3 -m sawyer_control.cli health >/dev/null 2>&1; then
+            "${compose[@]}" exec -T bridge python3 -m sawyer_control.cli health
+            return 0
+        fi
+        sleep 1
+    done
+    printf 'Bridge did not become healthy. Inspect: docker compose -p sawyer-control logs bridge\n' >&2
+    return 1
+}
+
 "${compose[@]}" up -d --build bridge
-"${compose[@]}" exec -T bridge python3 -m sawyer_control.cli health
+wait_for_bridge

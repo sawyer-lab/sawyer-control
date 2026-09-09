@@ -15,6 +15,8 @@ On the computer connected to the robot, start the bridge with one command:
 The user running that command needs access to Docker. On a newly configured
 host, an administrator can grant it once with
 `sudo usermod -aG docker $USER`; log out and back in before continuing.
+If UFW is active, the first command also requests the user's password once to
+allow traffic on the robot Ethernet interface.
 
 The launcher uses this Sawyer's fixed hostname and discovers its network route
 without prompting. Later invocations rediscover the robot and reuse or update

@@ -64,10 +64,8 @@ class SimpleClickSmartGripper:
                 self._node_state.time, msg.time):
             self._node_state = msg
             # track our device's status
-            if msg.devices and msg.devices[0].name == self.name:
-                self._node_device_status = msg.devices[0].status
-            else:
-                self._node_device_status = None
+            self._node_device_status = next(
+                (device.status for device in msg.devices if device.name == self.name), None)
 
     def _load_endpoint_info(self):
         device_config  = json.loads(self.gripper_io.config.device.config)
@@ -126,7 +124,8 @@ class SimpleClickSmartGripper:
         """
         _, ep_info = self.get_endpoint_info(endpoint_id)
         if ee_signal_type in ep_info:
-            self.gripper_io.set_signal_value(ep_info[ee_signal_type], value)
+            return self.gripper_io.set_signal_value(ep_info[ee_signal_type], value, timeout=timeout)
+        return False
 
     def get_ee_signals(self, endpoint_id=None):
         """

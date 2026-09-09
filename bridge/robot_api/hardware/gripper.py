@@ -10,24 +10,27 @@ from .clicksmart_plate import SimpleClickSmartGripper
 class Gripper:
     """Binary gripper control through the installed ClickSmart tool plate."""
 
+    DEVICE_ID = "stp_021709TP00448"
     MAX_POSITION = 0.041667
     MIN_POSITION = 0.0
 
-    def __init__(self, device_id: str = "right_gripper"):
+    def __init__(self, device_id: str = DEVICE_ID):
         self._plate = SimpleClickSmartGripper(device_id, initialize=True)
         rospy.loginfo("ClickSmart gripper ready: %s", self._plate.name)
 
-    def _set_grip(self, closed: bool) -> None:
-        for endpoint in self._plate.list_endpoint_names():
-            self._plate.set_ee_signal_value("grip", not closed, endpoint_id=endpoint)
+    def _set_grip(self, closed: bool) -> bool:
+        endpoints = self._plate.list_endpoint_names()
+        if not endpoints:
+            return False
+        results = [self._plate.set_ee_signal_value("grip", not closed, endpoint_id=endpoint)
+                   for endpoint in endpoints]
+        return all(results)
 
     def open(self) -> bool:
-        self._set_grip(False)
-        return True
+        return self._set_grip(False)
 
     def close(self) -> bool:
-        self._set_grip(True)
-        return True
+        return self._set_grip(True)
 
     def position(self) -> float:
         endpoints = self._plate.list_endpoint_names()
@@ -41,7 +44,7 @@ class Gripper:
     def is_grasping(self) -> bool:
         endpoints = self._plate.list_endpoint_names()
         return bool(endpoints) and all(
-            not self._plate.get_ee_signal_value("grip", endpoint_id=endpoint)
+            self._plate.get_ee_signal_value("grip", endpoint_id=endpoint) is False
             for endpoint in endpoints
         )
 
@@ -49,5 +52,6 @@ class Gripper:
         return {
             "position": self.position(),
             "is_grasping": self.is_grasping(),
-            "state": "ready",
+            "state": (self._plate._node_device_status.tag
+                      if self._plate._node_device_status is not None else "unknown"),
         }

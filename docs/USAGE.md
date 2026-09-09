@@ -89,3 +89,14 @@ dotnet run --project examples/csharp/SawyerStatus.csproj -- http://127.0.0.1:500
 Both examples generate their client from the repository's canonical protobuf
 definition and only query state. Use the generated `RobotControl`,
 `ForceTorque`, and `Camera` clients for the remaining RPCs.
+# Browser workspace integration (2026-09-09)
+
+The local first-version browser workspace is documented in
+`/home/fausto/Projects/sawyer-operations/README.md`
+It reads arm state and exposes explicit Open/Close gripper buttons.
+
+The bridge owns one fixed ClickSmart plate: `stp_021709TP00448`. It initializes
+that plate during bridge startup, so the tool is ready before the browser begins
+polling it. Missing grip signals produce an unknown position (`-1`); unacknowledged
+writes return failure rather than success. Both behaviors are covered by offline
+adapter tests.

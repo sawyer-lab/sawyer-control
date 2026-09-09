@@ -178,14 +178,15 @@ class IODeviceInterface(IOInterface):
         """Set signal value. Infers type automatically if not provided."""
         if signal_name not in self.list_signal_names():
             rospy.logerr(f"Signal '{signal_name}' not found in {self._path}")
-            return
+            return False
         s_type = signal_type or self.get_signal_type(signal_name)
         if s_type is None:
             rospy.logerr(f"Cannot determine type for signal '{signal_name}'")
-            return
+            return False
         cmd = SetCommand().set_signal(signal_name, s_type, signal_value)
-        self.publish_command(cmd.op, cmd.args, timeout=timeout)
-        self.revalidate(timeout, invalidate_state=False, invalidate_config=False)
+        if not self.publish_command(cmd.op, cmd.args, timeout=timeout):
+            return False
+        return self.revalidate(timeout, invalidate_state=False, invalidate_config=False)
 
     # ── ports ─────────────────────────────────────────────────────────────────
 

@@ -33,11 +33,13 @@ class Runtime:
 
     @classmethod
     def build(cls) -> "Runtime":
-        return cls(
+        runtime = cls(
             robot=Robot(),
             enable=RobotEnable(),
             cameras={"head": Camera("head_camera"), "hand": Camera("right_hand_camera")},
         )
+        runtime.gripper = Gripper()
+        return runtime
 
     def get_gripper(self) -> Gripper:
         with self._hardware_lock:

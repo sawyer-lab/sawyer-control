@@ -232,7 +232,7 @@ def _camera_frame(runtime, camera_id, context):
     data = camera.get_image_compressed()
     image = camera.get_image()
     if data is None or image is None:
-        context.abort(grpc.StatusCode.UNAVAILABLE, f"{camera_name} camera has no frame")
+        context.abort(grpc.StatusCode.UNAVAILABLE, "Camera has no frame")
     height, width = image.shape[:2]
     return control_pb2.ImageFrame(data=data, encoding="jpeg", width=width, height=height, timestamp_s=time.time())
 
