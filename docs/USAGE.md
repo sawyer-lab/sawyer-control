@@ -54,7 +54,7 @@ the explicit `robot.py enable` command when appropriate.
 Connect the Brio directly to the bridge host. `./sawyer-control up` discovers a
 Logitech Brio UVC video device and mounts it into the bridge only when present.
 When automatic discovery cannot distinguish the intended video node, set its
-host device path in `~/.config/sawyer-control/runtime.env`:
+host device path in `~/.config/sawyer-control/settings.env`:
 
 ```bash
 BRIO_DEVICE=/dev/v4l/by-id/usb-Logitech_BRIO-video-index0

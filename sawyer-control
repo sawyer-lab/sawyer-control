@@ -3,8 +3,8 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/sawyer-control"
-CONFIG="$CONFIG_DIR/runtime.env"
-RUNTIME="$CONFIG_DIR/resolved.env"
+CONFIG="$CONFIG_DIR/settings.env"
+RUNTIME="$CONFIG_DIR/runtime.env"
 COMMAND="${1:-up}"
 
 if [[ "$COMMAND" != "up" || $# -gt 1 ]]; then
@@ -12,24 +12,15 @@ if [[ "$COMMAND" != "up" || $# -gt 1 ]]; then
     exit 2
 fi
 
-if [[ ! -f "$CONFIG" ]]; then
-    mkdir -p "$CONFIG_DIR"
-    read -r -p 'Sawyer mDNS hostname: ' robot_hostname
-    read -r -p 'Last-known robot IPv4 (optional): ' robot_ip_hint
-    read -r -p 'Host IPv4 fallback (optional): ' host_ip_hint
-    if [[ -z "$robot_hostname" ]]; then
-        printf 'A Sawyer hostname is required.\n' >&2
-        exit 2
-    fi
-    umask 077
-    {
-        printf 'ROBOT_HOSTNAME=%q\n' "$robot_hostname"
-        printf 'ROBOT_IP_HINT=%q\n' "$robot_ip_hint"
-        printf 'HOST_IP_HINT=%q\n' "$host_ip_hint"
-    } > "$CONFIG"
+mkdir -p "$CONFIG_DIR"
+ROBOT_IP_HINT=""
+HOST_IP_HINT=""
+BRIO_DEVICE=""
+if [[ -f "$CONFIG" ]]; then
+    source "$CONFIG"
 fi
 
-source "$CONFIG"
+ROBOT_HOSTNAME="021607CP00070.local"
 BRIO_DEVICE="${BRIO_DEVICE:-}"
 export ROBOT_HOSTNAME ROBOT_IP_HINT HOST_IP_HINT BRIO_DEVICE
 discovery="$($ROOT/docker/find_robot.sh)"

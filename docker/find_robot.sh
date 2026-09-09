@@ -302,7 +302,7 @@ emit_discovery() {
 }
 
 discover_robot() {
-    local hostname="${ROBOT_HOSTNAME:?ROBOT_HOSTNAME is required}"
+    local hostname="${ROBOT_HOSTNAME:-021607CP00070.local}"
     local explicit_ip="${ROBOT_IP:-}"
     local robot_hint="${ROBOT_IP_HINT:-${ROBOT_IP:-}}"
     local host_hint="${HOST_IP_HINT:-${HOST_IP:-}}"

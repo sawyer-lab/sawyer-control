@@ -12,9 +12,10 @@ On the computer connected to the robot, start the bridge with one command:
 ./sawyer-control up
 ```
 
-The initial invocation asks for the robot hostname and optional network hints,
-then stores them under `~/.config/sawyer-control/runtime.env`. Later invocations
-rediscover the robot and reuse or update the bridge as needed.
+The launcher uses this Sawyer's fixed hostname and discovers its network route
+without prompting. Later invocations rediscover the robot and reuse or update
+the bridge as needed. Optional local overrides belong in
+`~/.config/sawyer-control/settings.env`.
 
 Create a new Python environment:
 
