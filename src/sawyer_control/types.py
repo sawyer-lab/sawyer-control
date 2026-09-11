@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Iterable
 
@@ -31,14 +31,3 @@ class JointCommandSample:
     velocity: JointVector | None = None
     effort: JointVector | None = None
     acceleration: JointVector | None = None
-
-
-@dataclass(frozen=True)
-class CommandSequence:
-    samples: tuple[JointCommandSample, ...] = field(default_factory=tuple)
-
-    def __init__(self, samples: Iterable[JointCommandSample]):
-        converted = tuple(samples)
-        if not converted:
-            raise ValueError("A command sequence must contain at least one sample")
-        object.__setattr__(self, "samples", converted)

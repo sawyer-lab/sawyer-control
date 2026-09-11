@@ -3,7 +3,7 @@ from concurrent import futures
 import grpc
 import pytest
 
-from sawyer_control import CameraClient, CommandSequence, ControlMode, ForceTorqueClient, JointCommandSample, SawyerRobotClient
+from sawyer_control import CameraClient, ControlMode, ForceTorqueClient, JointCommandSample, SawyerRobotClient
 from sawyer_control.v1 import control_pb2, control_pb2_grpc
 
 
@@ -19,15 +19,6 @@ class _Robot(control_pb2_grpc.RobotControlServicer):
         assert request.mode == control_pb2.VELOCITY
         assert list(request.sample.velocity.values) == [0.1] * 7
         return control_pb2.CommandResult(success=True)
-
-    def StartSequence(self, request, context):
-        assert request.mode == control_pb2.POSITION
-        assert request.rate_hz == 50
-        assert len(request.samples) == 1
-        return control_pb2.Operation(id="sequence-1")
-
-    def GetOperation(self, request, context):
-        return control_pb2.OperationStatus(id=request.id, phase="done")
 
 
 class _ForceTorque(control_pb2_grpc.ForceTorqueServicer):
@@ -66,10 +57,6 @@ def test_flat_robot_client(address):
         assert robot.health() == "v1"
         robot.move_to([0.0] * 7)
         robot.command(JointCommandSample(velocity=[0.1] * 7), ControlMode.VELOCITY)
-        operation = robot.execute_sequence(
-            CommandSequence([JointCommandSample(position=[0.0] * 7)]), ControlMode.POSITION, rate_hz=50
-        )
-        robot.wait_for_sequence(operation)
 
 
 def test_sensor_clients_are_independent(address):

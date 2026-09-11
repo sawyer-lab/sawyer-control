@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 from typing import Iterable
 
 import grpc
 
-from .types import CommandSequence, ControlMode, JointCommandSample, JointVector
+from .types import ControlMode, JointCommandSample, JointVector
 from .v1 import control_pb2, control_pb2_grpc
 
 _MODE_TO_PROTO = {
@@ -84,22 +83,6 @@ class SawyerRobotClient(_Client):
 
     def command(self, sample: JointCommandSample, mode: ControlMode) -> None:
         self._require(self._api.CommandJoints(control_pb2.JointCommandRequest(mode=_MODE_TO_PROTO[mode], sample=_sample(sample))))
-
-    def execute_sequence(self, sequence: CommandSequence, mode: ControlMode, rate_hz: float = 100.0) -> str:
-        operation = self._api.StartSequence(control_pb2.SequenceRequest(
-            mode=_MODE_TO_PROTO[mode], samples=[_sample(sample) for sample in sequence.samples], rate_hz=rate_hz))
-        return operation.id
-
-    def wait_for_sequence(self, operation_id: str, timeout_s: float = 30.0) -> None:
-        deadline = time.monotonic() + timeout_s
-        while time.monotonic() < deadline:
-            status = self._api.GetOperation(control_pb2.OperationRequest(id=operation_id))
-            if status.phase == "done":
-                return
-            if status.phase in {"aborted", "failed", "unknown"}:
-                raise BridgeError(status.message or status.phase)
-            time.sleep(0.02)
-        raise TimeoutError(f"Sequence {operation_id} did not finish in time")
 
     def stop(self) -> None:
         self._require(self._api.Stop(control_pb2.StopRequest()))

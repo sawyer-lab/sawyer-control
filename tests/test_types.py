@@ -1,6 +1,6 @@
 import pytest
 
-from sawyer_control import CommandSequence, JointCommandSample, JointVector
+from sawyer_control import JointVector
 
 
 def test_joint_vector_requires_seven_finite_values():
@@ -9,9 +9,3 @@ def test_joint_vector_requires_seven_finite_values():
         JointVector(range(6))
     with pytest.raises(ValueError):
         JointVector([0.0] * 6 + [float("nan")])
-
-
-def test_sequence_requires_a_sample():
-    with pytest.raises(ValueError):
-        CommandSequence([])
-    assert len(CommandSequence([JointCommandSample(position=[0.0] * 7)]).samples) == 1

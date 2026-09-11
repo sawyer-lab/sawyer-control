@@ -42,6 +42,12 @@ Run the read-only inspection demo first:
 python scripts/demo/inspect_robot.py
 ```
 
+For supervised low-level joint nudging from a terminal, run:
+
+```bash
+python scripts/demo/keyboard_control.py
+```
+
 The full setup, hardware demos, and C++/C# instructions are in
 [docs/USAGE.md](docs/USAGE.md).
 
@@ -65,9 +71,8 @@ with ForceTorqueClient.connect() as force_torque:
 clients. Only the robot client carries motion and lifecycle commands.
 
 The bridge never enables, resets, stops, moves, or zeroes hardware unless a
-client explicitly calls the corresponding operation. `execute_sequence` is the
-generic raw batch operation for position, velocity, torque, or trajectory-mode
-joint commands.
+client explicitly calls the corresponding operation. Joint commands are sent
+one command at a time in position, velocity, torque, or trajectory mode.
 
 ## Languages and API contract
 

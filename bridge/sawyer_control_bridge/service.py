@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import threading
 import time
-import uuid
 from concurrent import futures
-from dataclasses import dataclass
-from typing import Dict, Optional
 
 import grpc
 
@@ -37,63 +33,9 @@ def _valid(sample, mode):
     return all(values is None or len(values) == 7 for values in sample.values())
 
 
-@dataclass
-class _Operation:
-    phase: str = "running"
-    message: str = ""
-    cancelled: bool = False
-
-
-class SequenceExecutor:
-    def __init__(self, runtime):
-        self._runtime = runtime
-        self._lock = threading.Lock()
-        self._operations: Dict[str, _Operation] = {}
-        self._active = None
-
-    def start(self, mode, samples, rate_hz):
-        with self._lock:
-            if self._active is not None:
-                raise RuntimeError("A sequence is already running")
-            operation_id = str(uuid.uuid4())
-            operation = _Operation()
-            self._operations[operation_id] = operation
-            self._active = operation_id
-        thread = threading.Thread(target=self._run, args=(operation_id, mode, samples, rate_hz), daemon=True)
-        thread.start()
-        return operation_id
-
-    def _run(self, operation_id, mode, samples, rate_hz):
-        with self._lock:
-            operation = self._operations[operation_id]
-        try:
-            ok = self._runtime.execute(mode, samples, rate_hz, lambda: operation.cancelled)
-            with self._lock:
-                operation.phase = "aborted" if operation.cancelled else ("done" if ok else "failed")
-                operation.message = "cancelled" if operation.cancelled else ("" if ok else "robot rejected sequence")
-        except Exception as exc:
-            with self._lock:
-                operation.phase = "failed"
-                operation.message = str(exc)
-        finally:
-            with self._lock:
-                self._active = None
-
-    def stop(self):
-        with self._lock:
-            if self._active is not None:
-                self._operations[self._active].cancelled = True
-        return self._runtime.stop()
-
-    def status(self, operation_id):
-        with self._lock:
-            return self._operations.get(operation_id)
-
-
 class RobotService(control_pb2_grpc.RobotControlServicer):
     def __init__(self, runtime):
         self._runtime = runtime
-        self._sequences = SequenceExecutor(runtime)
 
     def Health(self, request, context):
         return control_pb2.HealthReply(protocol_version="v1", bridge_version="0.1.0")
@@ -123,23 +65,8 @@ class RobotService(control_pb2_grpc.RobotControlServicer):
         ok = self._runtime.command(request.mode, sample)
         return control_pb2.CommandResult(success=ok, message="" if ok else "Command rejected")
 
-    def StartSequence(self, request, context):
-        samples = [_sample(sample) for sample in request.samples]
-        if request.rate_hz <= 0 or not samples or not all(_valid(sample, request.mode) for sample in samples):
-            context.abort(grpc.StatusCode.INVALID_ARGUMENT, "Invalid sequence")
-        try:
-            return control_pb2.Operation(id=self._sequences.start(request.mode, samples, request.rate_hz))
-        except RuntimeError as exc:
-            context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(exc))
-
-    def GetOperation(self, request, context):
-        operation = self._sequences.status(request.id)
-        if operation is None:
-            return control_pb2.OperationStatus(id=request.id, phase="unknown", message="Unknown operation")
-        return control_pb2.OperationStatus(id=request.id, phase=operation.phase, message=operation.message)
-
     def Stop(self, request, context):
-        ok = self._sequences.stop()
+        ok = self._runtime.stop()
         return control_pb2.CommandResult(success=ok, message="" if ok else "Stop failed")
 
     def Enable(self, request, context):

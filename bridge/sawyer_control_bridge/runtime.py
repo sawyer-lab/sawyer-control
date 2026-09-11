@@ -82,25 +82,7 @@ class Runtime:
             effort=sample.get("effort") or [],
             acceleration=sample.get("acceleration") or [],
         )
-        return bool(self.robot._sawyer.execute_sequence([command], control_mode, 100.0))
-
-    def execute(self, mode: int, samples: List[dict], rate_hz: float, cancelled) -> bool:
-        control_mode = {
-            1: ControlMode.POSITION,
-            2: ControlMode.VELOCITY,
-            3: ControlMode.TORQUE,
-            4: ControlMode.TRAJECTORY,
-        }[mode]
-        commands = [
-            RobotCommand(
-                position=sample.get("position") or [],
-                velocity=sample.get("velocity") or [],
-                effort=sample.get("effort") or [],
-                acceleration=sample.get("acceleration") or [],
-            )
-            for sample in samples
-        ]
-        return bool(self.robot._sawyer.execute_sequence(commands, control_mode, rate_hz, cancelled))
+        return bool(self.robot._sawyer.command_joint_values(command, control_mode))
 
     def stop(self) -> bool:
         return bool(self.enable.stop())

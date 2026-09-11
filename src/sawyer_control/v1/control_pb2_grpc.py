@@ -64,16 +64,6 @@ class RobotControlStub(object):
                 request_serializer=sawyer__control_dot_v1_dot_control__pb2.JointCommandRequest.SerializeToString,
                 response_deserializer=sawyer__control_dot_v1_dot_control__pb2.CommandResult.FromString,
                 _registered_method=True)
-        self.StartSequence = channel.unary_unary(
-                '/sawyer.control.v1.RobotControl/StartSequence',
-                request_serializer=sawyer__control_dot_v1_dot_control__pb2.SequenceRequest.SerializeToString,
-                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.Operation.FromString,
-                _registered_method=True)
-        self.GetOperation = channel.unary_unary(
-                '/sawyer.control.v1.RobotControl/GetOperation',
-                request_serializer=sawyer__control_dot_v1_dot_control__pb2.OperationRequest.SerializeToString,
-                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.OperationStatus.FromString,
-                _registered_method=True)
         self.Stop = channel.unary_unary(
                 '/sawyer.control.v1.RobotControl/Stop',
                 request_serializer=sawyer__control_dot_v1_dot_control__pb2.StopRequest.SerializeToString,
@@ -145,18 +135,6 @@ class RobotControlServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def CommandJoints(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def StartSequence(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def GetOperation(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -236,16 +214,6 @@ def add_RobotControlServicer_to_server(servicer, server):
                     servicer.CommandJoints,
                     request_deserializer=sawyer__control_dot_v1_dot_control__pb2.JointCommandRequest.FromString,
                     response_serializer=sawyer__control_dot_v1_dot_control__pb2.CommandResult.SerializeToString,
-            ),
-            'StartSequence': grpc.unary_unary_rpc_method_handler(
-                    servicer.StartSequence,
-                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.SequenceRequest.FromString,
-                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.Operation.SerializeToString,
-            ),
-            'GetOperation': grpc.unary_unary_rpc_method_handler(
-                    servicer.GetOperation,
-                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.OperationRequest.FromString,
-                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.OperationStatus.SerializeToString,
             ),
             'Stop': grpc.unary_unary_rpc_method_handler(
                     servicer.Stop,
@@ -445,60 +413,6 @@ class RobotControl(object):
             '/sawyer.control.v1.RobotControl/CommandJoints',
             sawyer__control_dot_v1_dot_control__pb2.JointCommandRequest.SerializeToString,
             sawyer__control_dot_v1_dot_control__pb2.CommandResult.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def StartSequence(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/sawyer.control.v1.RobotControl/StartSequence',
-            sawyer__control_dot_v1_dot_control__pb2.SequenceRequest.SerializeToString,
-            sawyer__control_dot_v1_dot_control__pb2.Operation.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def GetOperation(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/sawyer.control.v1.RobotControl/GetOperation',
-            sawyer__control_dot_v1_dot_control__pb2.OperationRequest.SerializeToString,
-            sawyer__control_dot_v1_dot_control__pb2.OperationStatus.FromString,
             options,
             channel_credentials,
             insecure,

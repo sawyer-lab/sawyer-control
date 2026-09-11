@@ -1,4 +1,4 @@
 from .client import CameraClient, ForceTorqueClient, SawyerRobotClient
-from .types import CommandSequence, ControlMode, JointCommandSample, JointVector
+from .types import ControlMode, JointCommandSample, JointVector
 
-__all__ = ["CameraClient", "CommandSequence", "ControlMode", "ForceTorqueClient", "JointCommandSample", "JointVector", "SawyerRobotClient"]
+__all__ = ["CameraClient", "ControlMode", "ForceTorqueClient", "JointCommandSample", "JointVector", "SawyerRobotClient"]

@@ -47,11 +47,16 @@ python scripts/demo/force_torque.py read
 python scripts/demo/force_torque.py zero
 python scripts/demo/robot.py state
 python scripts/demo/robot.py move --target '0,-0.78,0,1.55,0,0.78,3.14'
+python scripts/demo/keyboard_control.py
 ```
 
 `camera.py` explicitly starts the requested camera. It leaves it running unless
 `--stop-after` is passed. `robot.py move` does not enable the robot first; use
 the explicit `robot.py enable` command when appropriate.
+
+`keyboard_control.py` reads the current arm pose, then uses keys `1` through `7`
+to select J0 through J6 and the left/right arrows to send a 0.05-radian position
+nudge. It does not enable, reset, or stop the robot. Press `q` to leave the demo.
 
 ## Logitech Brio
 

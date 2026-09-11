@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import rospy
 from intera_core_msgs.msg import EndpointState, JointCommand
@@ -86,29 +86,18 @@ class SawyerInterface:
         while not rospy.is_shutdown() and rospy.Time.now() < deadline:
             if max(abs(current - desired) for current, desired in zip(self.joint_positions(), target)) <= 0.015:
                 return True
-            if not self.execute_sequence([command], ControlMode.POSITION, 100.0):
+            if not self.command_joint_values(command, ControlMode.POSITION):
                 return False
         return False
 
-    def execute_sequence(
-        self,
-        commands: List[RobotCommand],
-        mode: int,
-        rate_hz: float,
-        cancelled: Optional[Callable[[], bool]] = None,
-    ) -> bool:
-        if not commands or rate_hz <= 0:
-            return False
-        rate = rospy.Rate(rate_hz)
+    def command_joint_values(self, command: RobotCommand, mode: int) -> bool:
         self._command.mode = mode
-        for command in commands:
-            if rospy.is_shutdown() or (cancelled is not None and cancelled()):
-                return False
-            self._command.position = command.position
-            self._command.velocity = command.velocity
-            self._command.acceleration = command.acceleration
-            self._command.effort = command.effort
-            self._command.header.stamp = rospy.Time.now()
-            self._publisher.publish(self._command)
-            rate.sleep()
+        if rospy.is_shutdown():
+            return False
+        self._command.position = command.position
+        self._command.velocity = command.velocity
+        self._command.acceleration = command.acceleration
+        self._command.effort = command.effort
+        self._command.header.stamp = rospy.Time.now()
+        self._publisher.publish(self._command)
         return True
