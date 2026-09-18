@@ -771,6 +771,993 @@ class ForceTorque(object):
             _registered_method=True)
 
 
+class ForceTorqueConfigStub(object):
+    """Config plane: the sensor's HTTP settings, persisted in the device across
+    reboots. Separate from ForceTorque because it is a different transport and a
+    different latency class. Mechanism only - the bridge applies no defaults and
+    writes nothing unless called. Network settings are deliberately absent.
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.GetIdentity = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/GetIdentity',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtIdentity.FromString,
+                _registered_method=True)
+        self.GetScaling = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/GetScaling',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSlotRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtScaling.FromString,
+                _registered_method=True)
+        self.GetDeviceStatus = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/GetDeviceStatus',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtDeviceStatus.FromString,
+                _registered_method=True)
+        self.GetConfiguration = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/GetConfiguration',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSlotRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtConfiguration.FromString,
+                _registered_method=True)
+        self.ListConfigurations = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/ListConfigurations',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtConfigurationList.FromString,
+                _registered_method=True)
+        self.WriteConfiguration = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/WriteConfiguration',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtWriteConfigurationRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtConfiguration.FromString,
+                _registered_method=True)
+        self.SetToolTransform = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetToolTransform',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtToolTransformRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtConfiguration.FromString,
+                _registered_method=True)
+        self.SelectConfiguration = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SelectConfiguration',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSlotRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+                _registered_method=True)
+        self.GetSettings = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/GetSettings',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+                _registered_method=True)
+        self.SetFilter = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetFilter',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtFilterRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+                _registered_method=True)
+        self.SetPeakLogging = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetPeakLogging',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+                _registered_method=True)
+        self.SetBiasVector = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetBiasVector',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtBiasRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+                _registered_method=True)
+        self.ClearBias = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/ClearBias',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+                _registered_method=True)
+        self.GetCommunications = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/GetCommunications',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+                _registered_method=True)
+        self.SetRate = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetRate',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtRateRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+                _registered_method=True)
+        self.SetBufferRecords = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetBufferRecords',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtBufferRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+                _registered_method=True)
+        self.SetRdtEnabled = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetRdtEnabled',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+                _registered_method=True)
+        self.SetEthernetIpEnabled = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetEthernetIpEnabled',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+                _registered_method=True)
+        self.GetMonitorConditions = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/GetMonitorConditions',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtMonitorConditions.FromString,
+                _registered_method=True)
+        self.SetMonitorCondition = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetMonitorCondition',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtMonitorConditionRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtMonitorCondition.FromString,
+                _registered_method=True)
+        self.SetMonitorConditionsEnabled = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/SetMonitorConditionsEnabled',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+                _registered_method=True)
+        self.GetPeaks = channel.unary_unary(
+                '/sawyer.control.v1.ForceTorqueConfig/GetPeaks',
+                request_serializer=sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+                response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtPeaks.FromString,
+                _registered_method=True)
+
+
+class ForceTorqueConfigServicer(object):
+    """Config plane: the sensor's HTTP settings, persisted in the device across
+    reboots. Separate from ForceTorque because it is a different transport and a
+    different latency class. Mechanism only - the bridge applies no defaults and
+    writes nothing unless called. Network settings are deliberately absent.
+    """
+
+    def GetIdentity(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetScaling(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetDeviceStatus(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetConfiguration(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListConfigurations(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def WriteConfiguration(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetToolTransform(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SelectConfiguration(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetSettings(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetFilter(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetPeakLogging(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetBiasVector(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ClearBias(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetCommunications(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetRate(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetBufferRecords(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetRdtEnabled(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetEthernetIpEnabled(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetMonitorConditions(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetMonitorCondition(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SetMonitorConditionsEnabled(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetPeaks(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_ForceTorqueConfigServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'GetIdentity': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetIdentity,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.Empty.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtIdentity.SerializeToString,
+            ),
+            'GetScaling': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetScaling,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSlotRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtScaling.SerializeToString,
+            ),
+            'GetDeviceStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetDeviceStatus,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.Empty.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtDeviceStatus.SerializeToString,
+            ),
+            'GetConfiguration': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetConfiguration,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSlotRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtConfiguration.SerializeToString,
+            ),
+            'ListConfigurations': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListConfigurations,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.Empty.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtConfigurationList.SerializeToString,
+            ),
+            'WriteConfiguration': grpc.unary_unary_rpc_method_handler(
+                    servicer.WriteConfiguration,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtWriteConfigurationRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtConfiguration.SerializeToString,
+            ),
+            'SetToolTransform': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetToolTransform,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtToolTransformRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtConfiguration.SerializeToString,
+            ),
+            'SelectConfiguration': grpc.unary_unary_rpc_method_handler(
+                    servicer.SelectConfiguration,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtSlotRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.SerializeToString,
+            ),
+            'GetSettings': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetSettings,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.Empty.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.SerializeToString,
+            ),
+            'SetFilter': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetFilter,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtFilterRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.SerializeToString,
+            ),
+            'SetPeakLogging': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetPeakLogging,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.SerializeToString,
+            ),
+            'SetBiasVector': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetBiasVector,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtBiasRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.SerializeToString,
+            ),
+            'ClearBias': grpc.unary_unary_rpc_method_handler(
+                    servicer.ClearBias,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.Empty.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.SerializeToString,
+            ),
+            'GetCommunications': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetCommunications,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.Empty.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.SerializeToString,
+            ),
+            'SetRate': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetRate,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtRateRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.SerializeToString,
+            ),
+            'SetBufferRecords': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetBufferRecords,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtBufferRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.SerializeToString,
+            ),
+            'SetRdtEnabled': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetRdtEnabled,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.SerializeToString,
+            ),
+            'SetEthernetIpEnabled': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetEthernetIpEnabled,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtCommunications.SerializeToString,
+            ),
+            'GetMonitorConditions': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetMonitorConditions,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.Empty.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtMonitorConditions.SerializeToString,
+            ),
+            'SetMonitorCondition': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetMonitorCondition,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtMonitorConditionRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtMonitorCondition.SerializeToString,
+            ),
+            'SetMonitorConditionsEnabled': grpc.unary_unary_rpc_method_handler(
+                    servicer.SetMonitorConditionsEnabled,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtSettings.SerializeToString,
+            ),
+            'GetPeaks': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetPeaks,
+                    request_deserializer=sawyer__control_dot_v1_dot_control__pb2.Empty.FromString,
+                    response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtPeaks.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'sawyer.control.v1.ForceTorqueConfig', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+    server.add_registered_method_handlers('sawyer.control.v1.ForceTorqueConfig', rpc_method_handlers)
+
+
+ # This class is part of an EXPERIMENTAL API.
+class ForceTorqueConfig(object):
+    """Config plane: the sensor's HTTP settings, persisted in the device across
+    reboots. Separate from ForceTorque because it is a different transport and a
+    different latency class. Mechanism only - the bridge applies no defaults and
+    writes nothing unless called. Network settings are deliberately absent.
+    """
+
+    @staticmethod
+    def GetIdentity(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/GetIdentity',
+            sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtIdentity.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetScaling(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/GetScaling',
+            sawyer__control_dot_v1_dot_control__pb2.FtSlotRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtScaling.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetDeviceStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/GetDeviceStatus',
+            sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtDeviceStatus.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetConfiguration(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/GetConfiguration',
+            sawyer__control_dot_v1_dot_control__pb2.FtSlotRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtConfiguration.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListConfigurations(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/ListConfigurations',
+            sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtConfigurationList.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def WriteConfiguration(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/WriteConfiguration',
+            sawyer__control_dot_v1_dot_control__pb2.FtWriteConfigurationRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtConfiguration.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetToolTransform(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetToolTransform',
+            sawyer__control_dot_v1_dot_control__pb2.FtToolTransformRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtConfiguration.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SelectConfiguration(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SelectConfiguration',
+            sawyer__control_dot_v1_dot_control__pb2.FtSlotRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetSettings(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/GetSettings',
+            sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetFilter(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetFilter',
+            sawyer__control_dot_v1_dot_control__pb2.FtFilterRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetPeakLogging(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetPeakLogging',
+            sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetBiasVector(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetBiasVector',
+            sawyer__control_dot_v1_dot_control__pb2.FtBiasRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ClearBias(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/ClearBias',
+            sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetCommunications(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/GetCommunications',
+            sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetRate(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetRate',
+            sawyer__control_dot_v1_dot_control__pb2.FtRateRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetBufferRecords(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetBufferRecords',
+            sawyer__control_dot_v1_dot_control__pb2.FtBufferRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetRdtEnabled(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetRdtEnabled',
+            sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetEthernetIpEnabled(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetEthernetIpEnabled',
+            sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtCommunications.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetMonitorConditions(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/GetMonitorConditions',
+            sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtMonitorConditions.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetMonitorCondition(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetMonitorCondition',
+            sawyer__control_dot_v1_dot_control__pb2.FtMonitorConditionRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtMonitorCondition.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SetMonitorConditionsEnabled(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/SetMonitorConditionsEnabled',
+            sawyer__control_dot_v1_dot_control__pb2.FtEnableRequest.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtSettings.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetPeaks(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/sawyer.control.v1.ForceTorqueConfig/GetPeaks',
+            sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.FtPeaks.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+
 class CameraStub(object):
     """Missing associated documentation comment in .proto file."""
 

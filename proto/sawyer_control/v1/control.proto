@@ -17,6 +17,34 @@ service RobotControl {
   rpc GetGripperState(Empty) returns (GripperState);
 }
 service ForceTorque { rpc GetReading(Empty) returns (ForceTorqueReading); rpc StreamReadings(StreamReadingsRequest) returns (stream ForceTorqueReading); rpc Zero(Empty) returns (CommandResult); }
+// Config plane: the sensor's HTTP settings, persisted in the device across
+// reboots. Separate from ForceTorque because it is a different transport and a
+// different latency class. Mechanism only - the bridge applies no defaults and
+// writes nothing unless called. Network settings are deliberately absent.
+service ForceTorqueConfig {
+  rpc GetIdentity(Empty) returns (FtIdentity);
+  rpc GetScaling(FtSlotRequest) returns (FtScaling);
+  rpc GetDeviceStatus(Empty) returns (FtDeviceStatus);
+  rpc GetConfiguration(FtSlotRequest) returns (FtConfiguration);
+  rpc ListConfigurations(Empty) returns (FtConfigurationList);
+  rpc WriteConfiguration(FtWriteConfigurationRequest) returns (FtConfiguration);
+  rpc SetToolTransform(FtToolTransformRequest) returns (FtConfiguration);
+  rpc SelectConfiguration(FtSlotRequest) returns (FtSettings);
+  rpc GetSettings(Empty) returns (FtSettings);
+  rpc SetFilter(FtFilterRequest) returns (FtSettings);
+  rpc SetPeakLogging(FtEnableRequest) returns (FtSettings);
+  rpc SetBiasVector(FtBiasRequest) returns (FtSettings);
+  rpc ClearBias(Empty) returns (FtSettings);
+  rpc GetCommunications(Empty) returns (FtCommunications);
+  rpc SetRate(FtRateRequest) returns (FtCommunications);
+  rpc SetBufferRecords(FtBufferRequest) returns (FtCommunications);
+  rpc SetRdtEnabled(FtEnableRequest) returns (FtCommunications);
+  rpc SetEthernetIpEnabled(FtEnableRequest) returns (FtCommunications);
+  rpc GetMonitorConditions(Empty) returns (FtMonitorConditions);
+  rpc SetMonitorCondition(FtMonitorConditionRequest) returns (FtMonitorCondition);
+  rpc SetMonitorConditionsEnabled(FtEnableRequest) returns (FtSettings);
+  rpc GetPeaks(Empty) returns (FtPeaks);
+}
 service Camera { rpc Start(CameraRequest) returns (CommandResult); rpc Stop(CameraRequest) returns (CommandResult); rpc GetFrame(CameraRequest) returns (ImageFrame); rpc StreamFrames(CameraStreamRequest) returns (stream ImageFrame); }
 
 message Empty {}
@@ -36,7 +64,31 @@ message StopRequest {}
 message StreamStateRequest { double rate_hz = 1; }
 message StreamReadingsRequest { double rate_hz = 1; }
 message GripperState { double position = 1; bool grasping = 2; string state = 3; }
-message ForceTorqueReading { double fx = 1; double fy = 2; double fz = 3; double tx = 4; double ty = 5; double tz = 6; uint64 sequence = 7; uint32 status = 8; double timestamp_s = 9; }
+message ForceTorqueReading { double fx = 1; double fy = 2; double fz = 3; double tx = 4; double ty = 5; double tz = 6; uint64 sequence = 7; uint32 status = 8; double timestamp_s = 9; repeated string faults = 10; bool healthy = 11; }
+// slot -1 selects the active configuration.
+message FtSlotRequest { int32 slot = 1; }
+message FtIdentity { string host = 1; string ip = 2; string mac = 3; string firmware = 4; string serial = 5; uint32 internal_rate_hz = 6; }
+message FtScaling { int64 counts_per_force = 1; int64 counts_per_torque = 2; string force_unit = 3; string torque_unit = 4; }
+message FtConfiguration { int32 slot = 1; int32 active_slot = 2; string name = 3; int32 calibration = 4; string calibration_serial = 5; repeated double tool_transform = 6; string tool_distance_unit = 7; string tool_angle_unit = 8; int32 force_unit_code = 9; int32 torque_unit_code = 10; int32 tool_distance_unit_code = 11; int32 tool_angle_unit_code = 12; repeated double sensing_ranges = 13; string user_field_a = 14; string user_field_b = 15; FtScaling scaling = 16; }
+message FtConfigurationList { repeated FtConfiguration configurations = 1; }
+// Units accept either the manual's menu name ("N", "Nm", "mm", "degrees") or its code as a string.
+message FtWriteConfigurationRequest { int32 slot = 1; optional string name = 2; optional int32 calibration = 3; optional string force_unit = 4; optional string torque_unit = 5; optional string distance_unit = 6; optional string angle_unit = 7; optional string user_field_a = 8; optional string user_field_b = 9; }
+message FtToolTransformRequest { int32 slot = 1; double dx = 2; double dy = 3; double dz = 4; double rx = 5; double ry = 6; double rz = 7; optional string distance_unit = 8; optional string angle_unit = 9; }
+// filter_cutoff_hz is 0 when no filter is active; check filter_enabled.
+message FtSettings { int32 active_slot = 1; int32 filter_code = 2; uint32 filter_cutoff_hz = 3; bool filter_enabled = 4; bool peak_logging = 5; bool monitor_conditions_enabled = 6; repeated int32 bias_vector = 7; }
+message FtCommunications { bool rdt_enabled = 1; uint32 rate_hz = 2; uint32 buffer_records = 3; uint32 internal_rate_hz = 4; }
+message FtFilterRequest { int32 code = 1; }
+message FtEnableRequest { bool enabled = 1; }
+message FtBiasRequest { repeated int32 gages = 1; }
+message FtRateRequest { uint32 rate_hz = 1; }
+message FtBufferRequest { uint32 records = 1; }
+// axis is one of fx fy fz tx ty tz, or empty to disable the statement.
+// comparison is ">" or "<". counts is raw counts, not user units.
+message FtMonitorCondition { uint32 index = 1; bool enabled = 2; string axis = 3; int32 axis_code = 4; string comparison = 5; int64 counts = 6; uint32 output_code = 7; }
+message FtMonitorConditions { repeated FtMonitorCondition conditions = 1; bool enabled = 2; }
+message FtMonitorConditionRequest { uint32 index = 1; string axis = 2; string comparison = 3; int64 counts = 4; uint32 output_code = 5; bool enabled = 6; }
+message FtPeaks { repeated int64 min_counts = 1; repeated int64 max_counts = 2; bool enabled = 3; }
+message FtDeviceStatus { uint32 status = 1; uint32 conditions_breached = 2; uint32 condition_output = 3; bool condition_latched = 4; repeated string faults = 5; bool healthy = 6; bool saturated = 7; }
 enum CameraId { CAMERA_ID_UNSPECIFIED = 0; HEAD = 1; HAND = 2; BRIO = 3; }
 message CameraRequest { CameraId camera = 1; }
 message CameraStreamRequest { CameraId camera = 1; double rate_hz = 2; }

@@ -5,6 +5,8 @@ from concurrent import futures
 
 import grpc
 
+from robot_api.hardware import ft_status
+from robot_api.hardware.ft_config import NetBoxError
 from sawyer_control.v1 import control_pb2, control_pb2_grpc
 
 
@@ -109,6 +111,152 @@ class ForceTorqueService(control_pb2_grpc.ForceTorqueServicer):
         return _result(sensor.zero())
 
 
+class ForceTorqueConfigService(control_pb2_grpc.ForceTorqueConfigServicer):
+    """Config plane. Every setter validates in ft_config before issuing a
+    request and returns what the device actually accepted, so callers must
+    render the response rather than what they asked for."""
+
+    def __init__(self, runtime):
+        self._runtime = runtime
+
+    def _box(self, context):
+        box = self._runtime.get_force_torque_config()
+        if box is None:
+            context.abort(grpc.StatusCode.UNAVAILABLE, "Force-torque sensor is unavailable")
+        return box
+
+    def _call(self, context, action):
+        """Map device and validation failures onto gRPC status codes."""
+        try:
+            return action(self._box(context))
+        except ValueError as exc:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
+        except NetBoxError as exc:
+            context.abort(grpc.StatusCode.UNAVAILABLE, str(exc))
+
+    # ── reads ────────────────────────────────────────────────────────────────
+
+    def GetIdentity(self, request, context):
+        raw = self._call(context, lambda box: box.identity())
+        return control_pb2.FtIdentity(
+            host=raw["host"], ip=raw["ip"], mac=raw["mac"], firmware=raw["firmware"],
+            serial=raw["serial"], internal_rate_hz=raw["internal_rate_hz"])
+
+    def GetScaling(self, request, context):
+        return _ft_scaling(self._call(context, lambda box: box.scaling(_slot(request.slot))))
+
+    def GetDeviceStatus(self, request, context):
+        raw = self._call(context, lambda box: box.status())
+        status = raw["status"]
+        return control_pb2.FtDeviceStatus(
+            status=status, conditions_breached=raw["conditions_breached"],
+            condition_output=raw["condition_output"], condition_latched=raw["condition_latched"],
+            faults=ft_status.faults(status), healthy=ft_status.is_healthy(status),
+            saturated=ft_status.saturated(status))
+
+    def GetConfiguration(self, request, context):
+        return _ft_configuration(
+            self._call(context, lambda box: box.configuration(_slot(request.slot))))
+
+    def ListConfigurations(self, request, context):
+        raw = self._call(context, lambda box: box.configurations())
+        return control_pb2.FtConfigurationList(
+            configurations=[_ft_configuration(config) for config in raw])
+
+    def GetSettings(self, request, context):
+        return _ft_settings(self._call(context, lambda box: box.settings()))
+
+    def GetCommunications(self, request, context):
+        return _ft_communications(self._call(context, lambda box: box.communications()))
+
+    def GetMonitorConditions(self, request, context):
+        conditions = self._call(context, lambda box: box.monitor_conditions())
+        enabled = self._call(context, lambda box: box.settings()["monitor_conditions_enabled"])
+        return control_pb2.FtMonitorConditions(
+            conditions=[_ft_condition(c) for c in conditions], enabled=enabled)
+
+    def GetPeaks(self, request, context):
+        raw = self._call(context, lambda box: box.peaks())
+        return control_pb2.FtPeaks(min_counts=raw["min_counts"], max_counts=raw["max_counts"],
+                                   enabled=raw["enabled"])
+
+    # ── writes ───────────────────────────────────────────────────────────────
+
+    def WriteConfiguration(self, request, context):
+        fields = {name: _unit(getattr(request, name))
+                  for name in ("name", "force_unit", "torque_unit", "distance_unit",
+                               "angle_unit", "user_field_a", "user_field_b")
+                  if request.HasField(name)}
+        if request.HasField("calibration"):
+            fields["calibration"] = request.calibration
+        return _ft_configuration(self._call(
+            context, lambda box: box.write_configuration(request.slot, **fields)))
+
+    def SetToolTransform(self, request, context):
+        units = {name: _unit(getattr(request, name))
+                 for name in ("distance_unit", "angle_unit") if request.HasField(name)}
+
+        def action(box):
+            box.set_tool_transform(request.slot, request.dx, request.dy, request.dz,
+                                   request.rx, request.ry, request.rz, **units)
+            return box.configuration(request.slot)
+
+        return _ft_configuration(self._call(context, action))
+
+    def SelectConfiguration(self, request, context):
+        def action(box):
+            box.select_configuration(request.slot)
+            return box.settings()
+
+        return _ft_settings(self._call(context, action))
+
+    def SetFilter(self, request, context):
+        return _ft_settings(self._call(
+            context, lambda box: (box.set_filter(request.code), box.settings())[1]))
+
+    def SetPeakLogging(self, request, context):
+        return _ft_settings(self._call(
+            context, lambda box: (box.set_peak_logging(request.enabled), box.settings())[1]))
+
+    def SetBiasVector(self, request, context):
+        return _ft_settings(self._call(
+            context, lambda box: (box.set_bias_vector(list(request.gages)), box.settings())[1]))
+
+    def ClearBias(self, request, context):
+        return _ft_settings(self._call(
+            context, lambda box: (box.clear_bias(), box.settings())[1]))
+
+    def SetRate(self, request, context):
+        return _ft_communications(self._call(
+            context, lambda box: (box.set_rate_hz(request.rate_hz), box.communications())[1]))
+
+    def SetBufferRecords(self, request, context):
+        return _ft_communications(self._call(
+            context, lambda box: (box.set_buffer_records(request.records),
+                                  box.communications())[1]))
+
+    def SetRdtEnabled(self, request, context):
+        return _ft_communications(self._call(
+            context, lambda box: (box.set_rdt_enabled(request.enabled),
+                                  box.communications())[1]))
+
+    def SetEthernetIpEnabled(self, request, context):
+        return _ft_communications(self._call(
+            context, lambda box: (box.set_ethernet_ip_enabled(request.enabled),
+                                  box.communications())[1]))
+
+    def SetMonitorCondition(self, request, context):
+        axis = request.axis or None
+        return _ft_condition(self._call(context, lambda box: box.set_monitor_condition(
+            request.index, axis, request.comparison, request.counts,
+            request.output_code, request.enabled)))
+
+    def SetMonitorConditionsEnabled(self, request, context):
+        return _ft_settings(self._call(
+            context, lambda box: (box.set_monitor_conditions_enabled(request.enabled),
+                                  box.settings())[1]))
+
+
 class CameraService(control_pb2_grpc.CameraServicer):
     def __init__(self, runtime):
         self._runtime = runtime
@@ -140,6 +288,58 @@ def _stream_rate(value, context, default):
     return rate_hz
 
 
+def _slot(slot):
+    """Protobuf cannot express "unset" for a plain int; -1 means active slot."""
+    return None if slot < 0 else slot
+
+
+def _unit(value):
+    """Units arrive as strings; pass numeric ones through as codes."""
+    return int(value) if isinstance(value, str) and value.lstrip("-").isdigit() else value
+
+
+def _ft_scaling(raw):
+    return control_pb2.FtScaling(
+        counts_per_force=raw["counts_per_force"], counts_per_torque=raw["counts_per_torque"],
+        force_unit=raw["force_unit"], torque_unit=raw["torque_unit"])
+
+
+def _ft_configuration(raw):
+    return control_pb2.FtConfiguration(
+        slot=raw["slot"], active_slot=raw["active_slot"], name=raw["name"],
+        calibration=raw["calibration"], calibration_serial=raw["calibration_serial"],
+        tool_transform=raw["tool_transform"], tool_distance_unit=raw["tool_distance_unit"],
+        tool_angle_unit=raw["tool_angle_unit"], force_unit_code=raw["force_unit_code"],
+        torque_unit_code=raw["torque_unit_code"],
+        tool_distance_unit_code=raw["tool_distance_unit_code"],
+        tool_angle_unit_code=raw["tool_angle_unit_code"],
+        sensing_ranges=raw["sensing_ranges"], user_field_a=raw["user_field_a"],
+        user_field_b=raw["user_field_b"], scaling=_ft_scaling(raw))
+
+
+def _ft_settings(raw):
+    cutoff = raw["filter_cutoff_hz"]
+    return control_pb2.FtSettings(
+        active_slot=raw["active_slot"], filter_code=raw["filter_code"],
+        filter_cutoff_hz=cutoff or 0, filter_enabled=cutoff is not None,
+        peak_logging=raw["peak_logging"],
+        monitor_conditions_enabled=raw["monitor_conditions_enabled"],
+        bias_vector=raw["bias_vector"])
+
+
+def _ft_communications(raw):
+    return control_pb2.FtCommunications(
+        rdt_enabled=raw["rdt_enabled"], rate_hz=raw["rate_hz"],
+        buffer_records=raw["buffer_records"], internal_rate_hz=raw["internal_rate_hz"])
+
+
+def _ft_condition(raw):
+    return control_pb2.FtMonitorCondition(
+        index=raw["index"], enabled=raw["enabled"], axis=raw["axis"] or "",
+        axis_code=raw["axis_code"], comparison=raw["comparison"], counts=raw["counts"],
+        output_code=raw["output_code"])
+
+
 def _ft_reading(runtime, context):
     sensor = runtime.get_force_torque()
     if sensor is None:
@@ -151,6 +351,8 @@ def _ft_reading(runtime, context):
         fx=reading["fx"], fy=reading["fy"], fz=reading["fz"],
         tx=reading["tx"], ty=reading["ty"], tz=reading["tz"],
         sequence=reading["seq"], status=reading["status"], timestamp_s=reading["timestamp"],
+        faults=ft_status.faults(reading["status"]),
+        healthy=ft_status.is_healthy(reading["status"]),
     )
 
 
@@ -198,5 +400,6 @@ def build_server(runtime):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
     control_pb2_grpc.add_RobotControlServicer_to_server(RobotService(runtime), server)
     control_pb2_grpc.add_ForceTorqueServicer_to_server(ForceTorqueService(runtime), server)
+    control_pb2_grpc.add_ForceTorqueConfigServicer_to_server(ForceTorqueConfigService(runtime), server)
     control_pb2_grpc.add_CameraServicer_to_server(CameraService(runtime), server)
     return server

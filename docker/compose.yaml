@@ -9,4 +9,5 @@ services:
     environment:
       ROBOT_IP: ${ROBOT_IP:?ROBOT_IP is required}
       HOST_IP: ${HOST_IP:?HOST_IP is required}
+      FT_SENSOR_IP: ${FT_SENSOR_IP:-disabled}
     restart: unless-stopped

@@ -1,16 +1,25 @@
 from __future__ import annotations
 
+import os
 import threading
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from robot_api.hardware.camera import Camera
 from robot_api.hardware.brio import BrioCamera
+from robot_api.hardware.ft_config import NetBoxConfig
 from robot_api.hardware.ft_sensor import FTSensorManager
 from robot_api.hardware.gripper import Gripper
 from robot_api.hardware.robot import Robot
 from robot_api.hardware.robot_enable import RobotEnable
 from robot_api.hardware.sawyer import ControlMode, RobotCommand
+
+
+def _build_ft_config() -> NetBoxConfig:
+    host = os.environ.get("FT_SENSOR_IP", "192.168.1.11")
+    if host.lower() == "disabled":
+        raise RuntimeError("FT sensor disabled via FT_SENSOR_IP=disabled")
+    return NetBoxConfig(host)
 
 
 def _optional(factory):
@@ -27,8 +36,10 @@ class Runtime:
     cameras: Dict[str, Camera]
     gripper: Optional[Gripper] = None
     ft: Optional[FTSensorManager] = None
+    ft_config: Optional[NetBoxConfig] = None
     brio: Optional[BrioCamera] = None
     _ft_initialized: bool = False
+    _ft_config_initialized: bool = False
     _hardware_lock: threading.Lock = field(default_factory=threading.Lock)
 
     @classmethod
@@ -53,6 +64,16 @@ class Runtime:
                 self.ft = _optional(FTSensorManager)
                 self._ft_initialized = True
             return self.ft
+
+    def get_force_torque_config(self) -> Optional[NetBoxConfig]:
+        """Config plane of the force/torque sensor, or None when the sensor is
+        disabled. Construction performs no I/O and writes nothing; the bridge
+        only reads or writes settings when a client asks it to."""
+        with self._hardware_lock:
+            if not self._ft_config_initialized:
+                self.ft_config = _optional(_build_ft_config)
+                self._ft_config_initialized = True
+            return self.ft_config
 
     def get_brio(self) -> BrioCamera:
         with self._hardware_lock:

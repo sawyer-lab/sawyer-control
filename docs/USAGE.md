@@ -54,6 +54,49 @@ python scripts/demo/keyboard_control.py
 `--stop-after` is passed. `robot.py move` does not enable the robot first; use
 the explicit `robot.py enable` command when appropriate.
 
+## Force/torque tools
+
+These plot their results, so install the extra first:
+
+```bash
+pip install -e '.[demo]'
+```
+
+They read RDT straight from the sensor rather than through the bridge, because
+the bridge hands out a polled cache that loses roughly a quarter of the samples
+at 1 kHz. Only one process can own that stream, which is why `FT_SENSOR_IP`
+defaults to `disabled`: the bridge keeps commanding the robot and leaves the
+sensor to whoever asks for it.
+
+```bash
+python scripts/demo/ft_parameters.py --host 192.168.1.11 --seconds 2
+python scripts/demo/ft_survey.py --seconds 10 --target-hz 100
+python scripts/demo/ft_step.py --seconds 60
+python scripts/demo/ft_sandbox.py
+python scripts/demo/ft_compare.py
+```
+
+`ft_parameters`, `ft_survey` and `ft_step` take command-line arguments.
+`ft_sandbox` and `ft_compare` are edited instead: each opens with a block of
+constants, and both are importable, so `run()` returns the captures as plain
+dicts for your own analysis.
+
+| tool | question it answers |
+| --- | --- |
+| `ft_parameters` | what do the output rate and filter do to a short burst |
+| `ft_survey` | which configuration is quietest at a given consumer rate |
+| `ft_step` | does a configuration still see a signal you produce by hand |
+| `ft_sandbox` | scratch slot: change anything, measure it, plot it |
+| `ft_compare` | same trajectory per configuration, so the traces overlay |
+
+Every one of them reads the device's settings first and writes them back on
+exit, including after a failure or Ctrl-C. None writes configuration slot 0.
+
+`ft_compare` **moves the arm**: it plays a joint-space CSV trajectory once per
+configuration so each pass sees the same motion, and records only the sensor.
+It needs the bridge up for robot control and refuses to start unless the robot
+is already enabled.
+
 `keyboard_control.py` reads the current arm pose, then uses keys `1` through `7`
 to select J0 through J6 and the left/right arrows to send a 0.05-radian position
 nudge. It does not enable, reset, or stop the robot. Press `q` to leave the demo.
