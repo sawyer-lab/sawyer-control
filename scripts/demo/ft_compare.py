@@ -13,7 +13,8 @@ perfect - but it is the same motion through the same poses, which is what makes
 the traces worth overlaying.
 
 The motion is the CSV trajectory, played through the arm at a fixed rate, so
-every trial sees the same poses at the same speeds. Only sensor data is
+every trial sees the same poses at the same speeds, and the pass for one
+configuration can be read against the pass for another. Only sensor data is
 recorded - the joints are the excitation, not the measurement.
 
 Start the bridge with FT_SENSOR_IP=disabled: it keeps commanding the robot and
@@ -82,8 +83,10 @@ TRIALS = [
 ]
 
 RESTORE = True
-SHOW = True
-SAVE = None                         # e.g. "compare.png"
+# One figure per trial is written as SAVE with an index and the trial label
+# inserted, e.g. ft_compare_03_1000hz_152hz.png. SHOW opens all nine at once.
+SHOW = False
+SAVE = "ft_compare.png"
 
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -274,6 +277,13 @@ def report(results):
 
 
 def plot(results, save=None, show=None):
+    """One figure per trial, all six axes, written as separate files.
+
+    A single overlaid figure sounds appealing and is unreadable: nine traces of
+    a 7.5 s motion sit on top of each other, and the axes that matter are not
+    always Fz. One page per configuration, six panels each, is what you actually
+    read afterwards.
+    """
     if not results:
         return
     save = SAVE if save is None else save
@@ -285,49 +295,43 @@ def plot(results, save=None, show=None):
         matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    unit = results[0]["force_unit"]
-    fig, axes = plt.subplots(3, 1, figsize=(13, 9))
+    force_unit = results[0]["force_unit"]
+    torque_unit = results[0]["torque_unit"]
+    units = [force_unit] * 3 + [torque_unit] * 3
+    stem = Path(save) if save else None
+    written = []
 
-    # The whole point: same motion, so the traces belong on one axis.
-    for result in results:
-        axes[0].plot(result["times"], column(result["rows"], 2),
-                     linewidth=0.7, label=result["label"])
-    axes[0].set_title("Fz through the same trajectory, one pass per configuration", fontsize=10)
-    axes[0].set_xlabel("time (s)", fontsize=8)
-    axes[0].set_ylabel(f"Fz ({unit})", fontsize=8)
-    axes[0].legend(fontsize=8)
-    axes[0].grid(alpha=0.3)
+    for index, result in enumerate(results, 1):
+        figure, panels = plt.subplots(3, 2, figsize=(13, 8), sharex=True)
+        times = result["times"]
+        for axis_index, (name, unit) in enumerate(zip(AXES, units)):
+            panel = panels[axis_index % 3][axis_index // 3]
+            values = column(result["rows"], axis_index)
+            panel.plot(times, values, linewidth=0.6)
+            panel.axhline(np.mean(values), color="tab:red", linewidth=0.8, linestyle="--")
+            panel.set_title(f"{name}   sigma {result['sigma'][axis_index]:.4f} {unit}",
+                            fontsize=9)
+            panel.set_ylabel(unit, fontsize=8)
+            panel.grid(alpha=0.3)
+        for panel in panels[2]:
+            panel.set_xlabel("time (s)", fontsize=8)
 
-    for result in results:
-        fz = np.array(column(result["rows"], 2))
-        fz = fz - fz.mean()
-        if len(fz) > 16:
-            window = np.hanning(len(fz))
-            magnitude = np.abs(np.fft.rfft(fz * window)) / len(fz)
-            freqs = np.fft.rfftfreq(len(fz), 1.0 / result["rate"])
-            axes[1].loglog(freqs[1:], magnitude[1:] + 1e-12, linewidth=0.7,
-                           label=result["label"])
-    axes[1].set_title("spectrum - where each configuration stops seeing the motion", fontsize=10)
-    axes[1].set_xlabel("frequency (Hz)", fontsize=8)
-    axes[1].set_ylabel("magnitude", fontsize=8)
-    axes[1].legend(fontsize=8)
-    axes[1].grid(alpha=0.3, which="both")
+        figure.suptitle(f"{result['label']}   -   {len(result['rows'])} samples, "
+                        f"command loop worst lateness "
+                        f"{result.get('worst_lateness_ms', 0):.1f} ms", fontsize=11)
+        figure.tight_layout(rect=(0, 0, 1, 0.96))
 
-    positions = np.arange(len(AXES))
-    width = 0.8 / len(results)
-    for index, result in enumerate(results):
-        offset = (index - (len(results) - 1) / 2) * width
-        axes[2].bar(positions + offset, result["sigma"], width, label=result["label"])
-    axes[2].set_xticks(positions)
-    axes[2].set_xticklabels(AXES)
-    axes[2].set_yscale("log")
-    axes[2].set_title("sigma per axis", fontsize=10)
-    axes[2].grid(alpha=0.3, axis="y")
+        if stem is not None:
+            slug = (result["label"].replace(" Hz", "hz").replace(" LPF", "")
+                    .replace(", ", "_").replace(" ", "-"))
+            path = stem.with_name(f"{stem.stem}_{index:02d}_{slug}{stem.suffix}")
+            figure.savefig(path, dpi=130)
+            written.append(path)
 
-    fig.tight_layout()
-    if save:
-        fig.savefig(save, dpi=130)
-        print(f"\nwrote {save}")
+    if written:
+        print(f"\nwrote {len(written)} figures:")
+        for path in written:
+            print(f"  {path}")
     if show:
         plt.show()
 

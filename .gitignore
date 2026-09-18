@@ -11,3 +11,4 @@ docker/docker-compose.override.yml
 # Capture artifacts from scripts/demo — data, not source
 *.npz
 /ft_step*.png
+/ft_compare*.png

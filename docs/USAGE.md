@@ -87,7 +87,7 @@ dicts for your own analysis.
 | `ft_survey` | which configuration is quietest at a given consumer rate |
 | `ft_step` | does a configuration still see a signal you produce by hand |
 | `ft_sandbox` | scratch slot: change anything, measure it, plot it |
-| `ft_compare` | same trajectory per configuration, so the traces overlay |
+| `ft_compare` | same trajectory per configuration, one six-axis figure each |
 
 Every one of them reads the device's settings first and writes them back on
 exit, including after a failure or Ctrl-C. None writes configuration slot 0.
@@ -95,7 +95,8 @@ exit, including after a failure or Ctrl-C. None writes configuration slot 0.
 `ft_compare` **moves the arm**: it plays a joint-space CSV trajectory once per
 configuration so each pass sees the same motion, and records only the sensor.
 It needs the bridge up for robot control and refuses to start unless the robot
-is already enabled.
+is already enabled. It writes one figure per trial — all six axes, the index and
+the configuration in the filename — rather than one crowded overlay.
 
 `keyboard_control.py` reads the current arm pose, then uses keys `1` through `7`
 to select J0 through J6 and the left/right arrows to send a 0.05-radian position
