@@ -13,9 +13,4 @@ class Robot:
         return self._sawyer.move_to_joint_positions(angles, timeout)
 
     def get_state(self) -> dict:
-        return {
-            "joint_angles": self._sawyer.joint_positions(),
-            "joint_velocities": self._sawyer.joint_velocities(),
-            "joint_efforts": self._sawyer.joint_efforts(),
-            "endpoint_pose": self._sawyer.endpoint_pose(),
-        }
+        return self._sawyer.state_snapshot()

@@ -34,20 +34,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bridge"))
 
-from _rdt import AXES, capture  # noqa: E402
-from robot_api.hardware.ft_config import FILTER_CUTOFF_HZ, NetBoxConfig  # noqa: E402
-
+from _rdt import AXES, capture
+from robot_api.hardware.ft_config import FILTER_CUTOFF_HZ, NetBoxConfig
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Edit from here.
 # ─────────────────────────────────────────────────────────────────────────────
 
 HOST = "192.168.1.11"
-SLOT = 8                  # scratch slot. Never 0.
-SECONDS = 2.0             # capture length per trial
-RESTORE = True            # put every setting back on the way out
-SHOW = True               # plt.show() at the end; set a path in SAVE instead
-SAVE = None               # e.g. "sandbox.png" -> also writes sandbox_summary.png
+SLOT = 8  # scratch slot. Never 0.
+SECONDS = 2.0  # capture length per trial
+RESTORE = True  # put every setting back on the way out
+SHOW = True  # plt.show() at the end; set a path in SAVE instead
+SAVE = None  # e.g. "sandbox.png" -> also writes sandbox_summary.png
 
 # Per-slot parameters, applied once before any trial. Anything omitted is left
 # alone. Units take the manual's menu name ("N", "Nm", "mm") or a code.
@@ -81,9 +80,9 @@ GLOBALS = dict(
 # opposite, and a low rate with no filter aliases everything into the band.
 TRIALS = [
     dict(bias=False, rate=1000, filter=0),
-    dict(bias=True,  rate=1000, filter=0),
-    dict(bias=True,  rate=1000, filter=3),    # 152 Hz LPF - the live setting
-    dict(bias=True,  rate=100,  filter=0),
+    dict(bias=True, rate=1000, filter=0),
+    dict(bias=True, rate=1000, filter=3),  # 152 Hz LPF - the live setting
+    dict(bias=True, rate=100, filter=0),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -93,16 +92,27 @@ TRIALS = [
 WORKING_SLOT = 0
 TRIAL_KEYS = {"label", "rate", "filter", "bias", "buffer"}
 GLOBAL_KEYS = {"peak_logging", "rdt", "monitor_conditions"}
-SLOT_KEYS = {"name", "calibration", "force_unit", "torque_unit",
-             "distance_unit", "angle_unit", "user_a", "user_b", "tool"}
+SLOT_KEYS = {
+    "name",
+    "calibration",
+    "force_unit",
+    "torque_unit",
+    "distance_unit",
+    "angle_unit",
+    "user_a",
+    "user_b",
+    "tool",
+}
 
 
 def _check(fields, allowed, what):
     """A typo in a dict key should fail, not be silently ignored."""
     unknown = set(fields) - allowed
     if unknown:
-        raise ValueError(f"{what}: unknown {', '.join(sorted(unknown))}; "
-                         f"known keys are {', '.join(sorted(allowed))}")
+        raise ValueError(
+            f"{what}: unknown {', '.join(sorted(unknown))}; "
+            f"known keys are {', '.join(sorted(allowed))}"
+        )
 
 
 def describe(trial):
@@ -124,10 +134,14 @@ def describe(trial):
 
 # ── device state: capture, apply, restore ────────────────────────────────────
 
+
 def snapshot(box, slot):
     """Everything this tool is capable of changing, so it can all go back."""
-    return {"settings": box.settings(), "comms": box.communications(),
-            "slot": box.configuration(slot)}
+    return {
+        "settings": box.settings(),
+        "comms": box.communications(),
+        "slot": box.configuration(slot),
+    }
 
 
 def restore(box, slot, saved):
@@ -140,16 +154,23 @@ def restore(box, slot, saved):
     box.set_monitor_conditions_enabled(settings["monitor_conditions_enabled"])
     if settings["bias_vector"]:
         box.set_bias_vector(settings["bias_vector"])
-    box.write_configuration(slot, name=config["name"], calibration=config["calibration"],
-                            force_unit=config["force_unit_code"],
-                            torque_unit=config["torque_unit_code"],
-                            distance_unit=config["tool_distance_unit_code"],
-                            angle_unit=config["tool_angle_unit_code"],
-                            user_field_a=config["user_field_a"],
-                            user_field_b=config["user_field_b"])
-    box.set_tool_transform(slot, *config["tool_transform"],
-                           distance_unit=config["tool_distance_unit_code"],
-                           angle_unit=config["tool_angle_unit_code"])
+    box.write_configuration(
+        slot,
+        name=config["name"],
+        calibration=config["calibration"],
+        force_unit=config["force_unit_code"],
+        torque_unit=config["torque_unit_code"],
+        distance_unit=config["tool_distance_unit_code"],
+        angle_unit=config["tool_angle_unit_code"],
+        user_field_a=config["user_field_a"],
+        user_field_b=config["user_field_b"],
+    )
+    box.set_tool_transform(
+        slot,
+        *config["tool_transform"],
+        distance_unit=config["tool_distance_unit_code"],
+        angle_unit=config["tool_angle_unit_code"],
+    )
     box.select_configuration(settings["active_slot"])
 
 
@@ -160,16 +181,25 @@ def apply_slot(box, slot, fields):
     transform = fields.get("tool")
     if set(fields) - {"tool"}:
         box.write_configuration(
-            slot, name=fields.get("name"), calibration=fields.get("calibration"),
-            force_unit=fields.get("force_unit"), torque_unit=fields.get("torque_unit"),
-            distance_unit=fields.get("distance_unit"), angle_unit=fields.get("angle_unit"),
-            user_field_a=fields.get("user_a"), user_field_b=fields.get("user_b"))
+            slot,
+            name=fields.get("name"),
+            calibration=fields.get("calibration"),
+            force_unit=fields.get("force_unit"),
+            torque_unit=fields.get("torque_unit"),
+            distance_unit=fields.get("distance_unit"),
+            angle_unit=fields.get("angle_unit"),
+            user_field_a=fields.get("user_a"),
+            user_field_b=fields.get("user_b"),
+        )
     if transform is not None:
         if len(transform) != 6:
             raise ValueError("tool needs six values: dx, dy, dz, rx, ry, rz")
-        box.set_tool_transform(slot, *transform,
-                               distance_unit=fields.get("distance_unit"),
-                               angle_unit=fields.get("angle_unit"))
+        box.set_tool_transform(
+            slot,
+            *transform,
+            distance_unit=fields.get("distance_unit"),
+            angle_unit=fields.get("angle_unit"),
+        )
 
 
 def apply_globals(box, fields):
@@ -197,6 +227,7 @@ def apply_trial(box, trial, saved_bias):
 
 # ── statistics ───────────────────────────────────────────────────────────────
 
+
 def column(samples, index):
     return [s[index] for s in samples]
 
@@ -212,8 +243,17 @@ def sigma(values):
 
 # ── the run ──────────────────────────────────────────────────────────────────
 
-def run(trials=None, slot=None, host=None, seconds=None, slot_params=None,
-        device_globals=None, restore_after=None, quiet=False):
+
+def run(
+    trials=None,
+    slot=None,
+    host=None,
+    seconds=None,
+    slot_params=None,
+    device_globals=None,
+    restore_after=None,
+    quiet=False,
+):
     """Apply each trial, capture, and return a row per trial.
 
     Every argument defaults to the block at the top of this file, so `run()`
@@ -228,19 +268,25 @@ def run(trials=None, slot=None, host=None, seconds=None, slot_params=None,
     restore_after = RESTORE if restore_after is None else restore_after
 
     if slot == WORKING_SLOT:
-        raise ValueError("slot 0 holds the working configuration and is never written; "
-                         "pick a scratch slot, e.g. 8")
+        raise ValueError(
+            "slot 0 holds the working configuration and is never written; "
+            "pick a scratch slot, e.g. 8"
+        )
 
     box = NetBoxConfig(host)
     say = (lambda *a: None) if quiet else print
     info = box.identity()
-    say(f"Net F/T at {info['ip']}  firmware {info['firmware']}  "
-        f"internal rate {info['internal_rate_hz']} Hz")
+    say(
+        f"Net F/T at {info['ip']}  firmware {info['firmware']}  "
+        f"internal rate {info['internal_rate_hz']} Hz"
+    )
 
     saved = snapshot(box, slot)
     saved_bias = saved["settings"]["bias_vector"] or [0] * 6
-    say(f"sandbox slot {slot} ({saved['slot']['name'] or 'unnamed'}), "
-        f"active slot {saved['settings']['active_slot']}, bias {saved_bias}")
+    say(
+        f"sandbox slot {slot} ({saved['slot']['name'] or 'unnamed'}), "
+        f"active slot {saved['settings']['active_slot']}, bias {saved_bias}"
+    )
     say(f"{'restoring' if restore_after else 'KEEPING'} device state on exit\n")
 
     results = []
@@ -250,12 +296,14 @@ def run(trials=None, slot=None, host=None, seconds=None, slot_params=None,
         box.select_configuration(slot)
         config = box.configuration(slot)
         scale_f, scale_t = config["counts_per_force"], config["counts_per_torque"]
-        say(f"slot {slot}: units {config['force_unit']}/{config['torque_unit']}, "
-            f"tool transform {config['tool_transform']} ({config['tool_distance_unit']})\n")
+        say(
+            f"slot {slot}: units {config['force_unit']}/{config['torque_unit']}, "
+            f"tool transform {config['tool_transform']} ({config['tool_distance_unit']})\n"
+        )
 
         for trial in trials:
             effective = apply_trial(box, trial, saved_bias)
-            time.sleep(0.2)                      # let the new settings settle
+            time.sleep(0.2)  # let the new settings settle
             samples, stats = capture(host, seconds, scale_f, scale_t)
             label = describe(trial)
             if not samples:
@@ -263,21 +311,34 @@ def run(trials=None, slot=None, host=None, seconds=None, slot_params=None,
                 continue
             means = [mean(column(samples, i)) for i in range(6)]
             noises = [sigma(column(samples, i)) for i in range(6)]
-            say(f"  {label:<34} {len(samples):>6} samples  "
+            say(
+                f"  {label:<34} {len(samples):>6} samples  "
                 f"{stats['measured_hz']:>7.0f} Hz  {stats['dropped']:>4} dropped  "
-                f"Fz mean={means[2]:+.4f} sigma={noises[2]:.4f} {config['force_unit']}")
-            results.append({"label": label, "trial": dict(trial), "samples": samples,
-                            "means": means, "sigma": noises, "rate": effective,
-                            "dropped": stats["dropped"], "slot": slot,
-                            "force_unit": config["force_unit"],
-                            "torque_unit": config["torque_unit"]})
+                f"Fz mean={means[2]:+.4f} sigma={noises[2]:.4f} {config['force_unit']}"
+            )
+            results.append(
+                {
+                    "label": label,
+                    "trial": dict(trial),
+                    "samples": samples,
+                    "means": means,
+                    "sigma": noises,
+                    "rate": effective,
+                    "dropped": stats["dropped"],
+                    "slot": slot,
+                    "force_unit": config["force_unit"],
+                    "torque_unit": config["torque_unit"],
+                }
+            )
     finally:
         if restore_after:
             restore(box, slot, saved)
             back = box.settings()
-            say(f"\nrestored: rate {box.communications()['rate_hz']} Hz, "
+            say(
+                f"\nrestored: rate {box.communications()['rate_hz']} Hz, "
                 f"filter code {back['filter_code']}, bias {back['bias_vector']}, "
-                f"active slot {back['active_slot']}")
+                f"active slot {back['active_slot']}"
+            )
         else:
             say("\nRESTORE is off: device left as the last trial set it")
     return results
@@ -287,8 +348,10 @@ def report(results):
     if not results:
         return
     force, torque = results[0]["force_unit"], results[0]["torque_unit"]
-    for title, key in (("mean (what bias moves)", "means"),
-                       ("sigma (what the filter moves)", "sigma")):
+    for title, key in (
+        ("mean (what bias moves)", "means"),
+        ("sigma (what the filter moves)", "sigma"),
+    ):
         print(f"\n{title}   force in {force}, torque in {torque}")
         print(f"  {'trial':<34}" + "".join(f"{a:>10}" for a in AXES))
         for row in results:
@@ -301,8 +364,9 @@ def plot(results, save=None, show=None):
     save = SAVE if save is None else save
     show = SHOW if show is None else show
 
-    import numpy as np
     import matplotlib
+    import numpy as np
+
     if save and not show:
         matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -318,8 +382,11 @@ def plot(results, save=None, show=None):
         trace = axes[row][0]
         trace.plot(t, fz, linewidth=0.6)
         trace.axhline(result["means"][2], color="tab:red", linewidth=0.8, linestyle="--")
-        trace.set_title(f"{result['label']}   Fz   mean={result['means'][2]:+.4f} "
-                        f"sigma={result['sigma'][2]:.4f} {unit}", fontsize=9)
+        trace.set_title(
+            f"{result['label']}   Fz   mean={result['means'][2]:+.4f} "
+            f"sigma={result['sigma'][2]:.4f} {unit}",
+            fontsize=9,
+        )
         trace.set_xlabel("time (s)", fontsize=8)
         trace.set_ylabel(f"Fz ({unit})", fontsize=8)
         trace.grid(alpha=0.3)

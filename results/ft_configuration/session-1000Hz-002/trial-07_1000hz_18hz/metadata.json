@@ -1,0 +1,154 @@
+{
+  "trial_index": 7,
+  "requested": {
+    "rate": 1000,
+    "filter": 6
+  },
+  "label": "1000 Hz, 18 Hz LPF",
+  "effective": {
+    "communications": {
+      "rdt_enabled": true,
+      "rate_hz": 1000,
+      "buffer_records": 1,
+      "internal_rate_hz": 7000
+    },
+    "settings": {
+      "filter_code": 6,
+      "filter_cutoff_hz": 18,
+      "filter_enabled": true,
+      "peak_logging": true,
+      "bias_vector": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "configuration": {
+      "name": "empty",
+      "calibration_serial": "empty",
+      "tool_transform": [
+        0.0,
+        0.0,
+        132.71,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "tool_distance_unit": "mm",
+      "tool_angle_unit": "degrees",
+      "force_unit_code": 2,
+      "torque_unit_code": 3,
+      "tool_distance_unit_code": 3,
+      "tool_angle_unit_code": 1,
+      "sensing_ranges": [
+        330.0,
+        330.0,
+        990.0,
+        30.0,
+        30.0,
+        30.0
+      ],
+      "user_field_a": "empty",
+      "user_field_b": "empty",
+      "scaling": {
+        "counts_per_force": "1000000",
+        "counts_per_torque": "1000000",
+        "force_unit": "N",
+        "torque_unit": "Nm"
+      }
+    }
+  },
+  "approach": {
+    "duration_s": 5.0,
+    "samples": 500,
+    "final_error_rad": 0.0034042968749999902
+  },
+  "settle_s": 1.0,
+  "pre_roll_s": 0.2,
+  "post_roll_s": 0.2,
+  "ft_start_history": {
+    "clock_id": "698ef34f4a354d8ea89da2dbf62fb2fc",
+    "session_id": "6e9d381f712d40ef94c42e6ebfb80e89",
+    "server_ns": "12805961779035",
+    "start_ns": "12805940000000",
+    "end_ns": "12805960000000",
+    "oldest_id": "1",
+    "newest_id": "6567",
+    "next_id": "6565"
+  },
+  "joint_start_state": {
+    "timestamp_s": 1790646719.9857712,
+    "positions": {
+      "values": [
+        0.0014482421875,
+        -1.1814580078125,
+        -0.0001123046875,
+        2.1767421875,
+        0.0021279296875,
+        0.566595703125,
+        3.1428916015625
+      ]
+    },
+    "velocities": {
+      "values": [
+        -0.001,
+        -0.001,
+        -0.001,
+        -0.001,
+        -0.001,
+        -0.001,
+        -0.001
+      ]
+    },
+    "efforts": {
+      "values": [
+        0.156,
+        -22.656,
+        -2.348,
+        -9.684,
+        3.3,
+        0.272,
+        0.056
+      ]
+    },
+    "pose": {
+      "position": {
+        "x": 0.4514466155999662,
+        "y": 0.16085398430882314,
+        "z": 0.21680412900188092
+      },
+      "orientation": {
+        "x": 0.6431577055467226,
+        "y": 0.7657290707797592,
+        "z": 0.0016958527092821292,
+        "w": 0.002068826293167511
+      }
+    },
+    "enabled": true,
+    "received_ns": "12805956309158",
+    "sample_id": "1188809",
+    "clock_id": "698ef34f4a354d8ea89da2dbf62fb2fc",
+    "source_stamp_s": 1790647091.5206268,
+    "velocity_valid": true,
+    "session_id": "12de3ef80d9b4753b09b36ac8e1029d8"
+  },
+  "summary": {
+    "ft_samples": 7897,
+    "ft_received_rate_hz": 998.2783898988897,
+    "ft_queries": 600,
+    "ft_invalid_queries": 0,
+    "ft_dropped_reported": 0,
+    "ft_rpc_errors": 0,
+    "ft_fatal_error": null,
+    "joint_samples": 792,
+    "joint_queries": 600,
+    "joint_rpc_errors": 0,
+    "joint_fatal_error": null,
+    "commands": 751,
+    "command_loop_worst_lateness_ms": 1.610622
+  },
+  "play_error": null
+}

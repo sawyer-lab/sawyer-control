@@ -4,6 +4,7 @@ package sawyer.control.v1;
 service RobotControl {
   rpc Health(HealthRequest) returns (HealthReply);
   rpc GetState(Empty) returns (RobotState);
+  rpc GetStateHistory(HistoryRequest) returns (RobotHistory);
   rpc StreamState(StreamStateRequest) returns (stream RobotState);
   rpc GetPose(Empty) returns (Pose);
   rpc MoveTo(MoveToRequest) returns (CommandResult);
@@ -16,7 +17,7 @@ service RobotControl {
   rpc CloseGripper(Empty) returns (CommandResult);
   rpc GetGripperState(Empty) returns (GripperState);
 }
-service ForceTorque { rpc GetReading(Empty) returns (ForceTorqueReading); rpc StreamReadings(StreamReadingsRequest) returns (stream ForceTorqueReading); rpc Zero(Empty) returns (CommandResult); }
+service ForceTorque { rpc GetReading(Empty) returns (ForceTorqueReading); rpc StreamReadings(StreamReadingsRequest) returns (stream ForceTorqueReading); rpc Zero(Empty) returns (CommandResult); rpc GetWindow(FtWindowRequest) returns (FtWindow); }
 // Config plane: the sensor's HTTP settings, persisted in the device across
 // reboots. Separate from ForceTorque because it is a different transport and a
 // different latency class. Mechanism only - the bridge applies no defaults and
@@ -54,17 +55,17 @@ message JointVector { repeated double values = 1; }
 message Position { double x = 1; double y = 2; double z = 3; }
 message Quaternion { double x = 1; double y = 2; double z = 3; double w = 4; }
 message Pose { Position position = 1; Quaternion orientation = 2; }
-message RobotState { double timestamp_s = 1; JointVector positions = 2; JointVector velocities = 3; JointVector efforts = 4; Pose pose = 5; bool enabled = 6; bool stopped = 7; }
+message RobotState { double timestamp_s = 1; JointVector positions = 2; JointVector velocities = 3; JointVector efforts = 4; Pose pose = 5; bool enabled = 6; bool stopped = 7; uint64 received_ns = 8; uint64 sample_id = 9; string clock_id = 10; double source_stamp_s = 11; bool velocity_valid = 12; string session_id = 13; }
 enum ControlMode { CONTROL_MODE_UNSPECIFIED = 0; POSITION = 1; VELOCITY = 2; TORQUE = 3; TRAJECTORY = 4; }
 message JointCommandSample { JointVector position = 1; JointVector velocity = 2; JointVector effort = 3; JointVector acceleration = 4; }
 message MoveToRequest { JointVector target = 1; double timeout_s = 2; }
-message JointCommandRequest { ControlMode mode = 1; JointCommandSample sample = 2; }
-message CommandResult { bool success = 1; string message = 2; }
+message JointCommandRequest { ControlMode mode = 1; JointCommandSample sample = 2; string cycle_id = 3; }
+message CommandResult { bool success = 1; string message = 2; string cycle_id = 3; string clock_id = 4; uint64 received_ns = 5; uint64 published_ns = 6; }
 message StopRequest {}
 message StreamStateRequest { double rate_hz = 1; }
 message StreamReadingsRequest { double rate_hz = 1; }
 message GripperState { double position = 1; bool grasping = 2; string state = 3; }
-message ForceTorqueReading { double fx = 1; double fy = 2; double fz = 3; double tx = 4; double ty = 5; double tz = 6; uint64 sequence = 7; uint32 status = 8; double timestamp_s = 9; repeated string faults = 10; bool healthy = 11; }
+message ForceTorqueReading { double fx = 1; double fy = 2; double fz = 3; double tx = 4; double ty = 5; double tz = 6; uint64 sequence = 7; uint32 status = 8; double timestamp_s = 9; repeated string faults = 10; bool healthy = 11; uint64 received_ns = 12; uint64 sample_id = 13; uint64 config_version = 14; string clock_id = 15; string force_unit = 16; string torque_unit = 17; }
 // slot -1 selects the active configuration.
 message FtSlotRequest { int32 slot = 1; }
 message FtIdentity { string host = 1; string ip = 2; string mac = 3; string firmware = 4; string serial = 5; uint32 internal_rate_hz = 6; }
@@ -93,3 +94,41 @@ enum CameraId { CAMERA_ID_UNSPECIFIED = 0; HEAD = 1; HAND = 2; BRIO = 3; }
 message CameraRequest { CameraId camera = 1; }
 message CameraStreamRequest { CameraId camera = 1; double rate_hz = 2; }
 message ImageFrame { bytes data = 1; string encoding = 2; uint32 width = 3; uint32 height = 4; double timestamp_s = 5; }
+
+// Bridge monotonic nanoseconds are meaningful only with their clock_id.
+// Cursor queries use session_id + after_id. Time queries use [start_ns, end_ns).
+// An omitted end is bridge now. A window_ns request uses the last completed
+// fixed-width bridge window. All queries are non-destructive and never wait
+// for more packets. Zero limit means 1000, zero max_age_s means 0.1 seconds.
+message HistoryRequest {
+  string session_id = 1; uint64 after_id = 2;
+  uint64 start_ns = 3; uint64 end_ns = 4; uint32 limit = 5;
+  string clock_id = 6;
+}
+message FtWindowRequest {
+  HistoryRequest history = 1; double max_age_s = 2;
+  bool include_samples = 3; uint64 window_ns = 4;
+}
+message HistoryInfo {
+  string clock_id = 1; string session_id = 2; uint64 server_ns = 3;
+  uint64 start_ns = 4; uint64 end_ns = 5;
+  uint64 oldest_id = 6; uint64 newest_id = 7; uint64 next_id = 8;
+  bool overflow = 9; bool session_changed = 10; bool truncated = 11;
+  bool cursor_ahead = 12; bool incomplete_window = 13;
+}
+message FtSample {
+  uint64 sample_id = 1; uint64 received_ns = 2;
+  uint32 rdt_sequence = 3; uint32 ft_sequence = 4; uint32 status = 5;
+  repeated double values = 6; uint64 config_version = 7;
+  string force_unit = 8; string torque_unit = 9;
+  uint64 dropped_before = 10; double wall_s = 11;
+}
+message FtWindow {
+  HistoryInfo history = 1; bool valid = 2; repeated string reasons = 3;
+  uint32 count = 4; repeated double mean = 5; double age_s = 6;
+  uint64 first_ns = 7; uint64 last_ns = 8; uint32 status = 9;
+  uint64 dropped = 10; uint64 config_version = 11;
+  string force_unit = 12; string torque_unit = 13;
+  repeated FtSample samples = 14; string reader_error = 15;
+}
+message RobotHistory { HistoryInfo history = 1; repeated RobotState samples = 2; }

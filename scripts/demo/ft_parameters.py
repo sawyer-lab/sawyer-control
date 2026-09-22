@@ -26,8 +26,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bridge"))
 
-from _rdt import AXES, capture  # noqa: E402
-from robot_api.hardware.ft_config import FILTER_CUTOFF_HZ, NetBoxConfig  # noqa: E402
+from _rdt import AXES, capture
+from robot_api.hardware.ft_config import FILTER_CUTOFF_HZ, NetBoxConfig
 
 
 def noise(values):
@@ -36,8 +36,9 @@ def noise(values):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--host", default="192.168.1.11")
     parser.add_argument("--seconds", type=float, default=2.0)
     parser.add_argument("--output", default="ft_parameters.png")
@@ -47,12 +48,18 @@ def main():
     box = NetBoxConfig(args.host)
     info = box.identity()
     config = box.configuration()
-    print(f"Net F/T at {info['ip']}  firmware {info['firmware']}  "
-          f"internal rate {info['internal_rate_hz']} Hz")
-    print(f"active slot {config['active_slot']}  units {config['force_unit']}/{config['torque_unit']}  "
-          f"counts per unit {config['counts_per_force']}/{config['counts_per_torque']}")
-    print(f"tool transform {config['tool_transform']} "
-          f"({config['tool_distance_unit']}, {config['tool_angle_unit']})")
+    print(
+        f"Net F/T at {info['ip']}  firmware {info['firmware']}  "
+        f"internal rate {info['internal_rate_hz']} Hz"
+    )
+    print(
+        f"active slot {config['active_slot']}  units {config['force_unit']}/{config['torque_unit']}  "
+        f"counts per unit {config['counts_per_force']}/{config['counts_per_torque']}"
+    )
+    print(
+        f"tool transform {config['tool_transform']} "
+        f"({config['tool_distance_unit']}, {config['tool_angle_unit']})"
+    )
     print(f"sensing ranges {config['sensing_ranges']}\n")
 
     original = box.communications()
@@ -68,7 +75,7 @@ def main():
         for rate_hz, filter_code in trials:
             effective = box.set_rate_hz(rate_hz)
             box.set_filter(filter_code)
-            time.sleep(0.2)                      # let the new settings settle
+            time.sleep(0.2)  # let the new settings settle
             samples, stats = capture(args.host, args.seconds, scale_f, scale_t)
             dropped = stats["dropped"]
             if not samples:
@@ -78,15 +85,19 @@ def main():
             cutoff = FILTER_CUTOFF_HZ[filter_code]
             label = f"{effective} Hz, {'no filter' if cutoff is None else str(cutoff) + ' Hz LPF'}"
             noises = [noise([s[i] for s in samples]) for i in range(6)]
-            print(f"  {label:<22} {len(samples):>6} samples  {measured:>7.0f} Hz measured  "
-                  f"{dropped:>5} dropped  noise Fz={noises[2]:.4f} {config['force_unit']}")
+            print(
+                f"  {label:<22} {len(samples):>6} samples  {measured:>7.0f} Hz measured  "
+                f"{dropped:>5} dropped  noise Fz={noises[2]:.4f} {config['force_unit']}"
+            )
             results.append((label, samples, noises, effective))
     finally:
         box.set_rate_hz(original["rate_hz"])
         box.set_buffer_records(original["buffer_records"])
         box.set_filter(original_filter)
-        print(f"\nrestored: rate {box.communications()['rate_hz']} Hz, "
-              f"filter code {box.settings()['filter_code']}")
+        print(
+            f"\nrestored: rate {box.communications()['rate_hz']} Hz, "
+            f"filter code {box.settings()['filter_code']}"
+        )
 
     if results:
         print("\nnoise (standard deviation) per axis")
@@ -99,8 +110,9 @@ def main():
 
 
 def plot(results, config, output):
-    import numpy as np
     import matplotlib
+    import numpy as np
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
