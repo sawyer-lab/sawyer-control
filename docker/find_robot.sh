@@ -246,6 +246,80 @@ configure_static_ipv4() {
     run_network_command ip address replace "$host_ip/$prefix" dev "$iface"
 }
 
+SYS_NET="${SYS_NET:-/sys/class/net}"
+
+has_any_ipv4() {
+    ip -4 -o address show dev "$1" 2>/dev/null | grep -q ' inet '
+}
+
+# Physical Ethernet interfaces with a cable in and no IPv4 address of any kind.
+# That is what a direct link to the robot looks like when nothing on it serves
+# DHCP: the robot falls back to a 169.254.x.x address, and this computer has none.
+unaddressed_wired_links() {
+    local path iface
+
+    for path in "$SYS_NET"/*; do
+        iface="${path##*/}"
+        [[ -d "$path/device" && ! -d "$path/wireless" ]] || continue
+        [[ "$(cat "$path/type" 2>/dev/null)" == 1 ]] || continue
+        [[ "$(cat "$path/carrier" 2>/dev/null)" == 1 ]] || continue
+        has_any_ipv4 "$iface" && continue
+        printf '%s\n' "$iface"
+    done
+}
+
+enable_link_local_ipv4() {
+    local iface="$1" profile="${ROBOT_CONNECTION:-Sawyer robot}"
+
+    if ! command -v nmcli >/dev/null 2>&1; then
+        log "  x $iface has no IPv4 address, and NetworkManager is not available to give it one."
+        return 1
+    fi
+
+    log "  $iface is connected but has no IPv4 address; enabling link-local IPv4 (169.254.x.x) on it ..."
+    if networkmanager_profile_exists "$profile"; then
+        run_network_command nmcli connection modify "$profile" \
+            connection.interface-name "$iface" \
+            ipv4.link-local enabled || return 1
+    else
+        run_network_command nmcli connection add \
+            type ethernet \
+            ifname "$iface" \
+            con-name "$profile" \
+            connection.autoconnect yes \
+            connection.autoconnect-priority 100 \
+            ipv4.method link-local \
+            ipv4.never-default yes \
+            ipv6.method link-local || return 1
+        log "    Created NetworkManager profile \"$profile\" for $iface."
+        log "    To undo: nmcli connection delete \"$profile\""
+    fi
+    run_network_command nmcli connection up "$profile" ifname "$iface" || return 1
+}
+
+# Give every unaddressed wired link a link-local address. Succeeds when at least
+# one of them ends up with an IPv4 address.
+configure_unaddressed_links() {
+    local iface wait any=1
+
+    while IFS= read -r iface; do
+        enable_link_local_ipv4 "$iface" || continue
+        # Link-local addresses are claimed only after ARP probing, a few seconds.
+        for ((wait = 0; wait < 15; wait++)); do
+            has_any_ipv4 "$iface" && break
+            sleep 1
+        done
+        if has_any_ipv4 "$iface"; then
+            log "    $iface now has $(ip -4 -o address show dev "$iface" | awk 'NR == 1 {print $4}')"
+            any=0
+        else
+            log "  x $iface still has no IPv4 address."
+        fi
+    done < <(unaddressed_wired_links)
+
+    return "$any"
+}
+
 collect_ipv4_candidates() {
     local hostname="$1" explicit_ip="$2" hint_ip="$3"
     local resolved_ip="" candidate seen=" "
@@ -339,11 +413,26 @@ discover_robot() {
         return 0
     fi
 
+    if [[ "${ROBOT_AUTO_CONFIGURE:-1}" == 1 ]] && configure_unaddressed_links; then
+        log "  Searching again ..."
+        for ((retry = 0; retry < 5; retry++)); do
+            result=$(find_reachable_from_candidates "$hostname" "$explicit_ip" "$robot_hint") || true
+            if [[ -n "$result" ]]; then
+                read -r robot_ip iface host_ip <<< "$result"
+                log "  OK Robot reachable via $iface (host: $host_ip, robot: $robot_ip)"
+                emit_discovery "$robot_ip" "$host_ip" "$iface" "$hostname"
+                return 0
+            fi
+            sleep 1
+        done
+    fi
+
     log "  IPv4 discovery failed; locating the physical robot link ..."
     ipv6=$(resolve_link_local_ipv6 "$hostname") || true
     if [[ -z "$ipv6" ]]; then
-        log "x The robot did not publish an IPv4 or link-local IPv6 address."
-        log "  Check that the controller is fully booted and Ethernet is connected."
+        log "x No answer from $hostname over mDNS, for IPv4 or link-local IPv6."
+        log "  Check that the controller is fully booted, Ethernet is connected, and avahi-daemon"
+        log "  is running. If you know the robot's address, run with ROBOT_IP=<address>."
         return 1
     fi
 
