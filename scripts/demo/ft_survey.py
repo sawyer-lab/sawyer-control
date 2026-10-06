@@ -41,19 +41,25 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bridge"))
 
-from _rdt import AXES, capture  # noqa: E402
-from robot_api.hardware.ft_config import FILTER_CUTOFF_HZ, NetBoxConfig  # noqa: E402
+from _rdt import AXES, capture
+from robot_api.hardware.ft_config import FILTER_CUTOFF_HZ, NetBoxConfig
 
 # (output rate, filter code). Spans the oversampling ratios worth distinguishing
 # at a 100 Hz consumer: 70x, 35x, 10x, 1x, with and without hardware filtering.
 CANDIDATES = [
-    (7000, 0), (7000, 1), (7000, 3),
-    (3500, 0), (1000, 0), (1000, 3),
-    (100, 0), (100, 6),
+    (7000, 0),
+    (7000, 1),
+    (7000, 3),
+    (3500, 0),
+    (1000, 0),
+    (1000, 3),
+    (100, 0),
+    (100, 6),
 ]
 
 
 # ── software pipelines, all producing a target_hz signal ─────────────────────
+
 
 def pipe_subsample(signal, ratio):
     """Take every Nth sample. What a consumer that polls a cache effectively
@@ -112,12 +118,15 @@ def pipe_filter_mean(signal, ratio):
 PIPELINES = {
     "subsample": (pipe_subsample, lambda ratio, hz: 0.0),
     "mean": (pipe_mean, lambda ratio, hz: 0.0),
-    "filter+mean": (pipe_filter_mean,
-                    lambda ratio, hz: 0.0 if ratio <= 1 else 1000.0 * (_kernel_taps(ratio) // 2) / hz),
+    "filter+mean": (
+        pipe_filter_mean,
+        lambda ratio, hz: 0.0 if ratio <= 1 else 1000.0 * (_kernel_taps(ratio) // 2) / hz,
+    ),
 }
 
 
 # ── metrics ──────────────────────────────────────────────────────────────────
+
 
 def allan_deviation(signal, rate_hz, points=24):
     """Overlapping Allan deviation. Falls as 1/sqrt(tau) while noise is white;
@@ -159,6 +168,7 @@ def line_pickup(freqs, magnitude):
 
 # ── survey ───────────────────────────────────────────────────────────────────
 
+
 def survey(box, host, seconds, target_hz, axis_index, save_path):
     original = box.communications()
     original_filter = box.settings()["filter_code"]
@@ -172,7 +182,7 @@ def survey(box, host, seconds, target_hz, axis_index, save_path):
         for rate_hz, filter_code in CANDIDATES:
             effective = box.set_rate_hz(rate_hz)
             box.set_filter(filter_code)
-            time.sleep(0.3)                          # let the settings settle
+            time.sleep(0.3)  # let the settings settle
             rows, stats = capture(host, seconds, scale_f, scale_t)
             cutoff = FILTER_CUTOFF_HZ[filter_code]
             label = f"{effective:>4} Hz / {'raw' if cutoff is None else f'{cutoff} Hz'}"
@@ -185,9 +195,11 @@ def survey(box, host, seconds, target_hz, axis_index, save_path):
             ratio = max(1, int(round(effective / target_hz)))
             raw_sigma = float(signal.std())
 
-            print(f"  {label}  {stats['samples']:>6} samples  "
-                  f"{stats['measured_hz']:>7.0f} Hz  {stats['dropped']:>4} dropped  "
-                  f"raw sigma={raw_sigma:.5f} {unit}")
+            print(
+                f"  {label}  {stats['samples']:>6} samples  "
+                f"{stats['measured_hz']:>7.0f} Hz  {stats['dropped']:>4} dropped  "
+                f"raw sigma={raw_sigma:.5f} {unit}"
+            )
 
             for name, (pipeline, delay_of) in PIPELINES.items():
                 output = pipeline(signal, ratio)
@@ -196,22 +208,32 @@ def survey(box, host, seconds, target_hz, axis_index, save_path):
                 sigma = float(np.std(output))
                 ideal = raw_sigma / np.sqrt(ratio)
                 freqs, magnitude = spectrum(signal, effective)
-                results.append({
-                    "label": label, "pipeline": name, "rate_hz": effective,
-                    "filter_code": filter_code, "filter_cutoff_hz": cutoff,
-                    "ratio": ratio, "raw_sigma": raw_sigma, "sigma": sigma,
-                    "ideal_sigma": float(ideal),
-                    "efficiency": float(ideal / sigma) if sigma else 0.0,
-                    "extra_latency_ms": float(delay_of(ratio, effective)),
-                    "dropped": stats["dropped"], "measured_hz": stats["measured_hz"],
-                    "line_pickup": float(line_pickup(freqs, magnitude)),
-                })
+                results.append(
+                    {
+                        "label": label,
+                        "pipeline": name,
+                        "rate_hz": effective,
+                        "filter_code": filter_code,
+                        "filter_cutoff_hz": cutoff,
+                        "ratio": ratio,
+                        "raw_sigma": raw_sigma,
+                        "sigma": sigma,
+                        "ideal_sigma": float(ideal),
+                        "efficiency": float(ideal / sigma) if sigma else 0.0,
+                        "extra_latency_ms": float(delay_of(ratio, effective)),
+                        "dropped": stats["dropped"],
+                        "measured_hz": stats["measured_hz"],
+                        "line_pickup": float(line_pickup(freqs, magnitude)),
+                    }
+                )
     finally:
         box.set_rate_hz(original["rate_hz"])
         box.set_buffer_records(original["buffer_records"])
         box.set_filter(original_filter)
-        print(f"\nrestored: {box.communications()['rate_hz']} Hz, "
-              f"filter code {box.settings()['filter_code']}")
+        print(
+            f"\nrestored: {box.communications()['rate_hz']} Hz, "
+            f"filter code {box.settings()['filter_code']}"
+        )
 
     if save_path and captures:
         np.savez_compressed(save_path, **{k.replace(" ", "_"): v for k, v in captures.items()})
@@ -220,43 +242,60 @@ def survey(box, host, seconds, target_hz, axis_index, save_path):
 
 
 def report(results, target_hz, unit):
-    print(f"\nEvaluated at {target_hz} Hz, best first "
-          f"(efficiency 1.0 = noise averages down as sqrt(N), i.e. it is white)\n")
-    header = (f"  {'config':<20} {'pipeline':<12} {'N':>4} {'sigma':>10} "
-              f"{'vs raw':>8} {'eff':>6} {'+lag':>9}")
+    print(
+        f"\nEvaluated at {target_hz} Hz, best first "
+        f"(efficiency 1.0 = noise averages down as sqrt(N), i.e. it is white)\n"
+    )
+    header = (
+        f"  {'config':<20} {'pipeline':<12} {'N':>4} {'sigma':>10} "
+        f"{'vs raw':>8} {'eff':>6} {'+lag':>9}"
+    )
     print(header)
     print("  " + "-" * (len(header) - 2))
     for row in sorted(results, key=lambda r: r["sigma"]):
         improvement = row["raw_sigma"] / row["sigma"] if row["sigma"] else 0
-        print(f"  {row['label']:<20} {row['pipeline']:<12} {row['ratio']:>4} "
-              f"{row['sigma']:>10.5f} {improvement:>7.1f}x {row['efficiency']:>6.2f} "
-              f"{row['extra_latency_ms']:>6.1f} ms")
+        print(
+            f"  {row['label']:<20} {row['pipeline']:<12} {row['ratio']:>4} "
+            f"{row['sigma']:>10.5f} {improvement:>7.1f}x {row['efficiency']:>6.2f} "
+            f"{row['extra_latency_ms']:>6.1f} ms"
+        )
 
     best = min(results, key=lambda r: r["sigma"])
     zero_delay = [r for r in results if r["extra_latency_ms"] < 0.01]
     best_live = min(zero_delay, key=lambda r: r["sigma"]) if zero_delay else best
     worst = max(results, key=lambda r: r["sigma"])
 
-    print(f"\n  quietest overall : {best['label']} + {best['pipeline']} "
-          f"-> {best['sigma']:.5f} {unit}")
-    print(f"  quietest with no extra lag: {best_live['label']} + {best_live['pipeline']} "
-          f"-> {best_live['sigma']:.5f} {unit}")
-    print(f"  worst            : {worst['label']} + {worst['pipeline']} "
-          f"-> {worst['sigma']:.5f} {unit} ({worst['sigma'] / best['sigma']:.1f}x noisier)")
+    print(
+        f"\n  quietest overall : {best['label']} + {best['pipeline']} -> {best['sigma']:.5f} {unit}"
+    )
+    print(
+        f"  quietest with no extra lag: {best_live['label']} + {best_live['pipeline']} "
+        f"-> {best_live['sigma']:.5f} {unit}"
+    )
+    print(
+        f"  worst            : {worst['label']} + {worst['pipeline']} "
+        f"-> {worst['sigma']:.5f} {unit} ({worst['sigma'] / best['sigma']:.1f}x noisier)"
+    )
 
     pickup = max(r["line_pickup"] for r in results)
     if pickup > 3:
-        print(f"\n  NOTE: mains pickup detected ({pickup:.1f}x background at 50/60 Hz). "
-              "Averaging will underperform sqrt(N) until that is dealt with.")
-    poor = [r for r in results if r["pipeline"] == "mean" and r["ratio"] > 4
-            and r["efficiency"] < 0.7]
+        print(
+            f"\n  NOTE: mains pickup detected ({pickup:.1f}x background at 50/60 Hz). "
+            "Averaging will underperform sqrt(N) until that is dealt with."
+        )
+    poor = [
+        r for r in results if r["pipeline"] == "mean" and r["ratio"] > 4 and r["efficiency"] < 0.7
+    ]
     if poor:
-        print("  NOTE: averaging underperforms the sqrt(N) ideal on "
-              f"{len(poor)} candidate(s) - the noise is not white there.")
+        print(
+            "  NOTE: averaging underperforms the sqrt(N) ideal on "
+            f"{len(poor)} candidate(s) - the noise is not white there."
+        )
 
 
 def plot(results, captures, target_hz, unit, output):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
@@ -294,14 +333,19 @@ def plot(results, captures, target_hz, unit, output):
     axes[1][0].axvline(target_hz / 2, color="k", linestyle=":", linewidth=0.8)
     axes[1][0].set_xlabel("frequency (Hz)", fontsize=8)
     axes[1][0].set_ylabel("magnitude", fontsize=8)
-    axes[1][0].set_title(f"noise spectra (dotted = {target_hz / 2:.0f} Hz target Nyquist)", fontsize=9)
+    axes[1][0].set_title(
+        f"noise spectra (dotted = {target_hz / 2:.0f} Hz target Nyquist)", fontsize=9
+    )
     axes[1][0].legend(fontsize=5)
     axes[1][0].grid(alpha=0.3, which="both")
 
     means = [r for r in results if r["pipeline"] in ("mean", "filter+mean")]
-    axes[1][1].scatter([r["ratio"] for r in means], [r["efficiency"] for r in means],
-                       c=["#2a9d8f" if r["pipeline"] == "filter+mean" else "#e76f51"
-                          for r in means], s=22)
+    axes[1][1].scatter(
+        [r["ratio"] for r in means],
+        [r["efficiency"] for r in means],
+        c=["#2a9d8f" if r["pipeline"] == "filter+mean" else "#e76f51" for r in means],
+        s=22,
+    )
     axes[1][1].axhline(1.0, color="k", linestyle="--", linewidth=0.8)
     axes[1][1].set_xscale("log")
     axes[1][1].set_xlabel("oversampling ratio N", fontsize=8)
@@ -326,20 +370,24 @@ def replot(save_path, json_path, target_hz, unit, output):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--host", default="192.168.1.11")
-    parser.add_argument("--seconds", type=float, default=10.0,
-                        help="capture length per candidate")
-    parser.add_argument("--target-hz", type=float, default=100.0,
-                        help="the rate your consumer actually runs at")
+    parser.add_argument("--seconds", type=float, default=10.0, help="capture length per candidate")
+    parser.add_argument(
+        "--target-hz", type=float, default=100.0, help="the rate your consumer actually runs at"
+    )
     parser.add_argument("--axis", default="Fz", choices=AXES)
     parser.add_argument("--output", default="ft_survey.png")
     parser.add_argument("--save", default="ft_survey_raw.npz")
     parser.add_argument("--json", default="")
     parser.add_argument("--no-plot", action="store_true")
-    parser.add_argument("--replot", action="store_true",
-                        help="re-analyse --save/--json from a previous run; no device access")
+    parser.add_argument(
+        "--replot",
+        action="store_true",
+        help="re-analyse --save/--json from a previous run; no device access",
+    )
     args = parser.parse_args()
 
     if args.replot:
@@ -349,13 +397,18 @@ def main():
     box = NetBoxConfig(args.host)
     identity = box.identity()
     config = box.configuration()
-    print(f"Net F/T {identity['ip']} fw {identity['firmware']}  "
-          f"slot {config['active_slot']} units {config['force_unit']}/{config['torque_unit']}")
-    print(f"surveying {len(CANDIDATES)} candidates x {args.seconds:g}s on {args.axis}, "
-          f"evaluated at {args.target_hz:g} Hz\n")
+    print(
+        f"Net F/T {identity['ip']} fw {identity['firmware']}  "
+        f"slot {config['active_slot']} units {config['force_unit']}/{config['torque_unit']}"
+    )
+    print(
+        f"surveying {len(CANDIDATES)} candidates x {args.seconds:g}s on {args.axis}, "
+        f"evaluated at {args.target_hz:g} Hz\n"
+    )
 
-    results, captures, unit = survey(box, args.host, args.seconds, args.target_hz,
-                                     AXES.index(args.axis), args.save)
+    results, captures, unit = survey(
+        box, args.host, args.seconds, args.target_hz, AXES.index(args.axis), args.save
+    )
     if not results:
         print("no results")
         return

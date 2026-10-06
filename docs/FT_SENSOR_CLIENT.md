@@ -1,3 +1,8 @@
+> Actualización de adquisición temporal: ver [FT_ACQUISITION.md](FT_ACQUISITION.md).
+> El lector ya no aplica cero al iniciar; consulta escalas reales, conserva un
+> historial y rechaza lecturas antiguas. La API de configuración coordina sus
+> escrituras con ese lector. Las consultas nuevas exponen tiempos y validez.
+
 # Force/Torque Sensor: Instructions for the Client Application
 
 Handoff notes for whoever builds the higher-level application on top of this
@@ -340,7 +345,7 @@ Conventions:
   `filter_enabled` rather than treating 0 as a cutoff.
 - **Setters return the device's post-write state.** Render that, not the request.
 - **Error mapping**: invalid arguments become `INVALID_ARGUMENT` and are
-  rejected *before* anything reaches the device; a missing or unreachable sensor
+  rejected before the HTTP setting is written (an active reader may restart); a missing or unreachable sensor
   becomes `UNAVAILABLE`.
 - `ForceTorqueReading` now also carries `faults` (decoded names) and `healthy`,
   so the data plane no longer hands you a bare integer.
@@ -349,29 +354,21 @@ The bridge reads `FT_SENSOR_IP` for both planes; it is plumbed through
 `docker/compose.yaml`. The container runs with `network_mode: host`, so it
 reaches the sensor directly.
 
-**The default is `disabled`.** The bridge keeps a freshest-sample cache and
-hands it out by polling, which loses about a quarter of the device's samples
-at 1 kHz (see *Not yet implemented* below). Anything that needs every sample
-reads RDT directly from the host instead, and only one process can own that
-stream — so the bridge does not take it unless asked. Set
-`FT_SENSOR_IP=192.168.1.11` to serve force/torque through the bridge; robot
-control is unaffected either way.
+The compose default is `disabled`. Set `FT_SENSOR_IP=192.168.1.11` to
+serve force/torque through the bridge. Robot control is unaffected either way.
+The bridge now owns a bounded sample history; use `GetWindow` / `window()` for
+intervals, means, sequence-loss reporting and validity. The legacy `StreamReadings`
+remains a latest-sample polling interface and can repeat/skip readings by design.
+Do not use a direct RDT demo concurrently with the bridge's sensor acquisition.
 
-## Not yet implemented
+## Acquisition limits
 
-The **config plane is complete**. The **data plane** is still the original
-driver. Missing, and worth knowing before you design against it:
-
-- **Buffered streaming** (RDT command `0x0003`, up to 40 records/packet) — not
-  implemented. Required for lossless capture at high rates.
-- **Push streaming** — `StreamReadings` currently polls a "freshest sample"
-  cache on its own clock, so it duplicates and skips samples. At 7 kHz it
-  discards roughly 98% of what the box sends.
-- **Staleness and packet-loss reporting** — a dead sensor currently returns its
-  last good reading indefinitely.
-- **`export_state` / `import_state`** — proposed snapshot/restore, not built.
-
-Do not design a high-rate capture feature against the current data plane.
+See [FT_ACQUISITION.md](FT_ACQUISITION.md) for the current data-plane contract.
+The reader preserves received realtime RDT records rather than draining to only
+the latest. It detects sequence gaps and rejects stale legacy readings, but
+hardware throughput and operating-system scheduling must still be measured.
+Buffered RDT mode (`0x0003`) and device-state export/import are not implemented.
+There is no claim of lossless UDP delivery or physical clock synchronization.
 
 ## Try it
 

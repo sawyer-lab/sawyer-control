@@ -64,7 +64,7 @@ def _sample(value: JointCommandSample) -> control_pb2.JointCommandSample:
 
 class SawyerRobotClient(_Client):
     @classmethod
-    def connect(cls, address: str = "127.0.0.1:50051") -> "SawyerRobotClient":
+    def connect(cls, address: str = "127.0.0.1:50051") -> SawyerRobotClient:
         return cls(Endpoint(address))
 
     def __init__(self, endpoint: Endpoint | None = None):
@@ -80,14 +80,57 @@ class SawyerRobotClient(_Client):
     def states(self, rate_hz: float = 100.0):
         return self._api.StreamState(control_pb2.StreamStateRequest(rate_hz=rate_hz))
 
+    def state_history(
+        self,
+        *,
+        session_id="",
+        after_id=0,
+        start_ns=0,
+        end_ns=0,
+        clock_id="",
+        limit=1000,
+        timeout=0.5,
+    ):
+        return self._api.GetStateHistory(
+            control_pb2.HistoryRequest(
+                session_id=session_id,
+                after_id=after_id,
+                start_ns=start_ns,
+                end_ns=end_ns,
+                clock_id=clock_id,
+                limit=limit,
+            ),
+            timeout=timeout,
+        )
+
+    def command_timed(self, sample, mode, cycle_id="", timeout=0.5):
+        """Return bridge receipt/publication timing, not physical actuation time.
+
+        A timeout does not prove a command was not executed. Do not blindly retry.
+        """
+        result = self._api.CommandJoints(
+            control_pb2.JointCommandRequest(
+                mode=_MODE_TO_PROTO[mode], sample=_sample(sample), cycle_id=str(cycle_id)
+            ),
+            timeout=timeout,
+        )
+        self._require(result)
+        return result
+
     def get_pose(self):
         return self._api.GetPose(control_pb2.Empty())
 
     def move_to(self, target: JointVector | Iterable[float], timeout_s: float = 30.0) -> None:
-        self._require(self._api.MoveTo(control_pb2.MoveToRequest(target=_vector(target), timeout_s=timeout_s)))
+        self._require(
+            self._api.MoveTo(control_pb2.MoveToRequest(target=_vector(target), timeout_s=timeout_s))
+        )
 
     def command(self, sample: JointCommandSample, mode: ControlMode) -> None:
-        self._require(self._api.CommandJoints(control_pb2.JointCommandRequest(mode=_MODE_TO_PROTO[mode], sample=_sample(sample))))
+        self._require(
+            self._api.CommandJoints(
+                control_pb2.JointCommandRequest(mode=_MODE_TO_PROTO[mode], sample=_sample(sample))
+            )
+        )
 
     def stop(self) -> None:
         self._require(self._api.Stop(control_pb2.StopRequest()))
@@ -118,12 +161,52 @@ class SawyerRobotClient(_Client):
 
 class ForceTorqueClient(_Client):
     @classmethod
-    def connect(cls, address: str = "127.0.0.1:50051") -> "ForceTorqueClient":
+    def connect(cls, address: str = "127.0.0.1:50051") -> ForceTorqueClient:
         return cls(Endpoint(address))
 
     def __init__(self, endpoint: Endpoint | None = None):
         super().__init__(endpoint)
         self._api = control_pb2_grpc.ForceTorqueStub(self._channel)
+
+    def window(
+        self,
+        *,
+        session_id="",
+        after_id=0,
+        start_ns=0,
+        end_ns=0,
+        clock_id="",
+        window_s=0,
+        max_age_s=0.1,
+        include_samples=False,
+        limit=1000,
+        timeout=0.5,
+    ):
+        """Non-destructive query. Check valid before using mean (empty if invalid).
+
+        window_s > 0 selects the last completed bridge-aligned time window.
+        Otherwise use a session cursor or explicit bridge timestamps.
+        """
+        import math
+
+        if not math.isfinite(window_s) or window_s < 0:
+            raise ValueError("window_s must be finite and nonnegative")
+        return self._api.GetWindow(
+            control_pb2.FtWindowRequest(
+                history=control_pb2.HistoryRequest(
+                    session_id=session_id,
+                    after_id=after_id,
+                    start_ns=start_ns,
+                    end_ns=end_ns,
+                    clock_id=clock_id,
+                    limit=limit,
+                ),
+                window_ns=round(window_s * 1e9),
+                max_age_s=max_age_s,
+                include_samples=include_samples,
+            ),
+            timeout=timeout,
+        )
 
     def read(self):
         return self._api.GetReading(control_pb2.Empty())
@@ -145,7 +228,7 @@ class ForceTorqueConfigClient(_Client):
     """
 
     @classmethod
-    def connect(cls, address: str = "127.0.0.1:50051") -> "ForceTorqueConfigClient":
+    def connect(cls, address: str = "127.0.0.1:50051") -> ForceTorqueConfigClient:
         return cls(Endpoint(address))
 
     def __init__(self, endpoint: Endpoint | None = None):
@@ -196,13 +279,23 @@ class ForceTorqueConfigClient(_Client):
             setattr(request, key, value if key == "calibration" else str(value))
         return self._api.WriteConfiguration(request)
 
-    def set_tool_transform(self, slot: int, dx: float = 0.0, dy: float = 0.0, dz: float = 0.0,
-                           rx: float = 0.0, ry: float = 0.0, rz: float = 0.0,
-                           distance_unit=None, angle_unit=None):
+    def set_tool_transform(
+        self,
+        slot: int,
+        dx: float = 0.0,
+        dy: float = 0.0,
+        dz: float = 0.0,
+        rx: float = 0.0,
+        ry: float = 0.0,
+        rz: float = 0.0,
+        distance_unit=None,
+        angle_unit=None,
+    ):
         """Set a slot's tool transform. Pass the units explicitly - slots differ
         (slot 0 is mm, slot 15 defaults to inches)."""
         request = control_pb2.FtToolTransformRequest(
-            slot=slot, dx=dx, dy=dy, dz=dz, rx=rx, ry=ry, rz=rz)
+            slot=slot, dx=dx, dy=dy, dz=dz, rx=rx, ry=ry, rz=rz
+        )
         if distance_unit is not None:
             request.distance_unit = str(distance_unit)
         if angle_unit is not None:
@@ -244,23 +337,30 @@ class ForceTorqueConfigClient(_Client):
     def set_ethernet_ip_enabled(self, enabled: bool):
         return self._api.SetEthernetIpEnabled(control_pb2.FtEnableRequest(enabled=enabled))
 
-    def set_monitor_condition(self, index: int, axis, comparison: str, counts: int,
-                              output_code: int, enabled: bool = True):
+    def set_monitor_condition(
+        self, index: int, axis, comparison: str, counts: int, output_code: int, enabled: bool = True
+    ):
         """Hardware threshold evaluated at 7 kHz inside the device. `axis` is
         one of fx fy fz tx ty tz, or None to disable. `counts` is raw counts -
         convert with scaling()."""
-        return self._api.SetMonitorCondition(control_pb2.FtMonitorConditionRequest(
-            index=index, axis=axis or "", comparison=comparison, counts=counts,
-            output_code=output_code, enabled=enabled))
+        return self._api.SetMonitorCondition(
+            control_pb2.FtMonitorConditionRequest(
+                index=index,
+                axis=axis or "",
+                comparison=comparison,
+                counts=counts,
+                output_code=output_code,
+                enabled=enabled,
+            )
+        )
 
     def set_monitor_conditions_enabled(self, enabled: bool):
-        return self._api.SetMonitorConditionsEnabled(
-            control_pb2.FtEnableRequest(enabled=enabled))
+        return self._api.SetMonitorConditionsEnabled(control_pb2.FtEnableRequest(enabled=enabled))
 
 
 class CameraClient(_Client):
     @classmethod
-    def connect(cls, address: str = "127.0.0.1:50051") -> "CameraClient":
+    def connect(cls, address: str = "127.0.0.1:50051") -> CameraClient:
         return cls(Endpoint(address))
 
     def __init__(self, endpoint: Endpoint | None = None):
@@ -277,28 +377,46 @@ class CameraClient(_Client):
         return self._api.GetFrame(control_pb2.CameraRequest(camera=control_pb2.BRIO))
 
     def start_hand(self) -> None:
-        SawyerRobotClient._require(self._api.Start(control_pb2.CameraRequest(camera=control_pb2.HAND)))
+        SawyerRobotClient._require(
+            self._api.Start(control_pb2.CameraRequest(camera=control_pb2.HAND))
+        )
 
     def stop_hand(self) -> None:
-        SawyerRobotClient._require(self._api.Stop(control_pb2.CameraRequest(camera=control_pb2.HAND)))
+        SawyerRobotClient._require(
+            self._api.Stop(control_pb2.CameraRequest(camera=control_pb2.HAND))
+        )
 
     def start_head(self) -> None:
-        SawyerRobotClient._require(self._api.Start(control_pb2.CameraRequest(camera=control_pb2.HEAD)))
+        SawyerRobotClient._require(
+            self._api.Start(control_pb2.CameraRequest(camera=control_pb2.HEAD))
+        )
 
     def stop_head(self) -> None:
-        SawyerRobotClient._require(self._api.Stop(control_pb2.CameraRequest(camera=control_pb2.HEAD)))
+        SawyerRobotClient._require(
+            self._api.Stop(control_pb2.CameraRequest(camera=control_pb2.HEAD))
+        )
 
     def start_brio(self) -> None:
-        SawyerRobotClient._require(self._api.Start(control_pb2.CameraRequest(camera=control_pb2.BRIO)))
+        SawyerRobotClient._require(
+            self._api.Start(control_pb2.CameraRequest(camera=control_pb2.BRIO))
+        )
 
     def stop_brio(self) -> None:
-        SawyerRobotClient._require(self._api.Stop(control_pb2.CameraRequest(camera=control_pb2.BRIO)))
+        SawyerRobotClient._require(
+            self._api.Stop(control_pb2.CameraRequest(camera=control_pb2.BRIO))
+        )
 
     def hand_frames(self, rate_hz: float = 15.0):
-        return self._api.StreamFrames(control_pb2.CameraStreamRequest(camera=control_pb2.HAND, rate_hz=rate_hz))
+        return self._api.StreamFrames(
+            control_pb2.CameraStreamRequest(camera=control_pb2.HAND, rate_hz=rate_hz)
+        )
 
     def head_frames(self, rate_hz: float = 15.0):
-        return self._api.StreamFrames(control_pb2.CameraStreamRequest(camera=control_pb2.HEAD, rate_hz=rate_hz))
+        return self._api.StreamFrames(
+            control_pb2.CameraStreamRequest(camera=control_pb2.HEAD, rate_hz=rate_hz)
+        )
 
     def brio_frames(self, rate_hz: float = 15.0):
-        return self._api.StreamFrames(control_pb2.CameraStreamRequest(camera=control_pb2.BRIO, rate_hz=rate_hz))
+        return self._api.StreamFrames(
+            control_pb2.CameraStreamRequest(camera=control_pb2.BRIO, rate_hz=rate_hz)
+        )

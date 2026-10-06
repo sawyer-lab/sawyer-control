@@ -12,3 +12,10 @@ docker/docker-compose.override.yml
 *.npz
 /ft_step*.png
 /ft_compare*.png
+
+ft_acquisition.jsonl
+
+results/
+
+.vscode
+.venv

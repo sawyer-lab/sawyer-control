@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import math
 import time
 from concurrent import futures
 
 import grpc
-
 from robot_api.hardware import ft_status
+from robot_api.hardware.ft_buffer import CLOCK_ID
 from robot_api.hardware.ft_config import NetBoxError
+
 from sawyer_control.v1 import control_pb2, control_pb2_grpc
 
 
@@ -45,6 +47,35 @@ class RobotService(control_pb2_grpc.RobotControlServicer):
     def GetState(self, request, context):
         return _robot_state(self._runtime.state())
 
+    def GetStateHistory(self, request, context):
+        try:
+            batch = self._runtime.state_history(**_history_args(request))
+        except ValueError as exc:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
+            raise
+
+        states = []
+
+        for row in batch["rows"]:
+            states.append(
+                _robot_state(
+                    {
+                        "joint_angles": row["positions"],
+                        "joint_velocities": row["velocities"],
+                        "joint_efforts": row["efforts"],
+                        "received_ns": row["received_ns"],
+                        "sample_id": row["sample_id"],
+                        "source_stamp_s": row["source_stamp_s"],
+                        "velocity_valid": row["velocity_valid"],
+                        "clock_id": CLOCK_ID,
+                        "session_id": batch["session_id"],
+                        "timestamp": row["wall_s"],
+                    }
+                )
+            )
+
+        return control_pb2.RobotHistory(history=_history_info(batch), samples=states)
+
     def StreamState(self, request, context):
         rate_hz = _stream_rate(request.rate_hz, context, 100.0)
         while context.is_active():
@@ -57,15 +88,30 @@ class RobotService(control_pb2_grpc.RobotControlServicer):
     def MoveTo(self, request, context):
         if len(request.target.values) != 7:
             return control_pb2.CommandResult(success=False, message="Expected seven joint values")
+
         ok = self._runtime.move_to(list(request.target.values), request.timeout_s or 30.0)
+
         return control_pb2.CommandResult(success=ok, message="" if ok else "Movement failed")
 
     def CommandJoints(self, request, context):
+        received_ns = time.monotonic_ns()
         sample = _sample(request.sample)
+
         if not _valid(sample, request.mode):
-            return control_pb2.CommandResult(success=False, message="Invalid command for control mode")
+            return control_pb2.CommandResult(
+                success=False, message="Invalid command for control mode"
+            )
+
         ok = self._runtime.command(request.mode, sample)
-        return control_pb2.CommandResult(success=ok, message="" if ok else "Command rejected")
+
+        return control_pb2.CommandResult(
+            success=ok,
+            message="" if ok else "Command rejected",
+            cycle_id=request.cycle_id,
+            clock_id=CLOCK_ID,
+            received_ns=received_ns,
+            published_ns=time.monotonic_ns() if ok else 0,
+        )
 
     def Stop(self, request, context):
         ok = self._runtime.stop()
@@ -88,7 +134,12 @@ class RobotService(control_pb2_grpc.RobotControlServicer):
 
     def GetGripperState(self, request, context):
         state = self._runtime.get_gripper().get_state()
-        return control_pb2.GripperState(position=state.get("position", 0.0), grasping=state.get("is_grasping", False), state=state.get("state", "unknown"))
+
+        return control_pb2.GripperState(
+            position=state.get("position", 0.0),
+            grasping=state.get("is_grasping", False),
+            state=state.get("state", "unknown"),
+        )
 
 
 class ForceTorqueService(control_pb2_grpc.ForceTorqueServicer):
@@ -104,10 +155,74 @@ class ForceTorqueService(control_pb2_grpc.ForceTorqueServicer):
             yield _ft_reading(self._runtime, context)
             time.sleep(1.0 / rate_hz)
 
+    def GetWindow(self, request, context):
+        try:
+            args = _history_args(request.history)
+            if request.window_ns:
+                if request.history.after_id or request.history.start_ns or request.history.end_ns:
+                    raise ValueError("window_ns cannot be combined with cursor or explicit times")
+                if not 1_000_000 <= request.window_ns <= 5_000_000_000:
+                    raise ValueError("window_ns must be between 1 ms and 5 s")
+                end = time.monotonic_ns() // request.window_ns * request.window_ns
+                args.update(start_ns=end - request.window_ns, end_ns=end)
+
+            age = request.max_age_s or 0.1
+
+            if not math.isfinite(age) or age <= 0:
+                raise ValueError("max_age_s must be finite and positive")
+
+            sensor = self._runtime.get_force_torque()
+
+            if sensor is None:
+                context.abort(
+                    grpc.StatusCode.UNAVAILABLE,
+                    "Force-torque sensor is unavailable",
+                )
+                raise RuntimeError("context.abort() unexpectedly returned")
+
+            result = sensor.query(max_age_s=age, **args)
+
+        except ValueError as exc:
+            context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
+            raise
+
+        fields = {
+            key: result[key]
+            for key in (
+                "valid",
+                "reasons",
+                "count",
+                "mean",
+                "age_s",
+                "first_ns",
+                "last_ns",
+                "status",
+                "dropped",
+                "config_version",
+                "force_unit",
+                "torque_unit",
+                "reader_error",
+            )
+        }
+
+        return control_pb2.FtWindow(
+            history=_history_info(result),
+            samples=[control_pb2.FtSample(**row) for row in result["rows"]]
+            if request.include_samples
+            else [],
+            **fields,
+        )
+
     def Zero(self, request, context):
         sensor = self._runtime.get_force_torque()
+
         if sensor is None:
-            context.abort(grpc.StatusCode.UNAVAILABLE, "Force-torque sensor is unavailable")
+            context.abort(
+                grpc.StatusCode.UNAVAILABLE,
+                "Force-torque sensor is unavailable",
+            )
+            raise RuntimeError("context.abort() unexpectedly returned")
+
         return _result(sensor.zero())
 
 
@@ -125,22 +240,39 @@ class ForceTorqueConfigService(control_pb2_grpc.ForceTorqueConfigServicer):
             context.abort(grpc.StatusCode.UNAVAILABLE, "Force-torque sensor is unavailable")
         return box
 
-    def _call(self, context, action):
+    def _call(self, context, action, write=False):
         """Map device and validation failures onto gRPC status codes."""
         try:
-            return action(self._box(context))
+            box = self._box(context)
+
+            if write and hasattr(self._runtime, "change_force_torque"):
+                return self._runtime.change_force_torque(action)
+
+            return action(box)
+
         except ValueError as exc:
             context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
-        except NetBoxError as exc:
+            raise
+
+        except (NetBoxError, RuntimeError) as exc:
             context.abort(grpc.StatusCode.UNAVAILABLE, str(exc))
+            raise
+
+    def _write(self, context, action):
+        return self._call(context, action, write=True)
 
     # ── reads ────────────────────────────────────────────────────────────────
 
     def GetIdentity(self, request, context):
         raw = self._call(context, lambda box: box.identity())
         return control_pb2.FtIdentity(
-            host=raw["host"], ip=raw["ip"], mac=raw["mac"], firmware=raw["firmware"],
-            serial=raw["serial"], internal_rate_hz=raw["internal_rate_hz"])
+            host=raw["host"],
+            ip=raw["ip"],
+            mac=raw["mac"],
+            firmware=raw["firmware"],
+            serial=raw["serial"],
+            internal_rate_hz=raw["internal_rate_hz"],
+        )
 
     def GetScaling(self, request, context):
         return _ft_scaling(self._call(context, lambda box: box.scaling(_slot(request.slot))))
@@ -149,19 +281,25 @@ class ForceTorqueConfigService(control_pb2_grpc.ForceTorqueConfigServicer):
         raw = self._call(context, lambda box: box.status())
         status = raw["status"]
         return control_pb2.FtDeviceStatus(
-            status=status, conditions_breached=raw["conditions_breached"],
-            condition_output=raw["condition_output"], condition_latched=raw["condition_latched"],
-            faults=ft_status.faults(status), healthy=ft_status.is_healthy(status),
-            saturated=ft_status.saturated(status))
+            status=status,
+            conditions_breached=raw["conditions_breached"],
+            condition_output=raw["condition_output"],
+            condition_latched=raw["condition_latched"],
+            faults=ft_status.faults(status),
+            healthy=ft_status.is_healthy(status),
+            saturated=ft_status.saturated(status),
+        )
 
     def GetConfiguration(self, request, context):
         return _ft_configuration(
-            self._call(context, lambda box: box.configuration(_slot(request.slot))))
+            self._call(context, lambda box: box.configuration(_slot(request.slot)))
+        )
 
     def ListConfigurations(self, request, context):
         raw = self._call(context, lambda box: box.configurations())
         return control_pb2.FtConfigurationList(
-            configurations=[_ft_configuration(config) for config in raw])
+            configurations=[_ft_configuration(config) for config in raw]
+        )
 
     def GetSettings(self, request, context):
         return _ft_settings(self._call(context, lambda box: box.settings()))
@@ -173,88 +311,143 @@ class ForceTorqueConfigService(control_pb2_grpc.ForceTorqueConfigServicer):
         conditions = self._call(context, lambda box: box.monitor_conditions())
         enabled = self._call(context, lambda box: box.settings()["monitor_conditions_enabled"])
         return control_pb2.FtMonitorConditions(
-            conditions=[_ft_condition(c) for c in conditions], enabled=enabled)
+            conditions=[_ft_condition(c) for c in conditions], enabled=enabled
+        )
 
     def GetPeaks(self, request, context):
         raw = self._call(context, lambda box: box.peaks())
-        return control_pb2.FtPeaks(min_counts=raw["min_counts"], max_counts=raw["max_counts"],
-                                   enabled=raw["enabled"])
+        return control_pb2.FtPeaks(
+            min_counts=raw["min_counts"], max_counts=raw["max_counts"], enabled=raw["enabled"]
+        )
 
     # ── writes ───────────────────────────────────────────────────────────────
 
     def WriteConfiguration(self, request, context):
-        fields = {name: _unit(getattr(request, name))
-                  for name in ("name", "force_unit", "torque_unit", "distance_unit",
-                               "angle_unit", "user_field_a", "user_field_b")
-                  if request.HasField(name)}
+        fields = {
+            name: _unit(getattr(request, name))
+            for name in (
+                "name",
+                "force_unit",
+                "torque_unit",
+                "distance_unit",
+                "angle_unit",
+                "user_field_a",
+                "user_field_b",
+            )
+            if request.HasField(name)
+        }
         if request.HasField("calibration"):
             fields["calibration"] = request.calibration
-        return _ft_configuration(self._call(
-            context, lambda box: box.write_configuration(request.slot, **fields)))
+        return _ft_configuration(
+            self._write(context, lambda box: box.write_configuration(request.slot, **fields))
+        )
 
     def SetToolTransform(self, request, context):
-        units = {name: _unit(getattr(request, name))
-                 for name in ("distance_unit", "angle_unit") if request.HasField(name)}
+        units = {
+            name: _unit(getattr(request, name))
+            for name in ("distance_unit", "angle_unit")
+            if request.HasField(name)
+        }
 
         def action(box):
-            box.set_tool_transform(request.slot, request.dx, request.dy, request.dz,
-                                   request.rx, request.ry, request.rz, **units)
+            box.set_tool_transform(
+                request.slot,
+                request.dx,
+                request.dy,
+                request.dz,
+                request.rx,
+                request.ry,
+                request.rz,
+                **units,
+            )
             return box.configuration(request.slot)
 
-        return _ft_configuration(self._call(context, action))
+        return _ft_configuration(self._write(context, action))
 
     def SelectConfiguration(self, request, context):
         def action(box):
             box.select_configuration(request.slot)
             return box.settings()
 
-        return _ft_settings(self._call(context, action))
+        return _ft_settings(self._write(context, action))
 
     def SetFilter(self, request, context):
-        return _ft_settings(self._call(
-            context, lambda box: (box.set_filter(request.code), box.settings())[1]))
+        return _ft_settings(
+            self._write(context, lambda box: (box.set_filter(request.code), box.settings())[1])
+        )
 
     def SetPeakLogging(self, request, context):
-        return _ft_settings(self._call(
-            context, lambda box: (box.set_peak_logging(request.enabled), box.settings())[1]))
+        return _ft_settings(
+            self._write(
+                context, lambda box: (box.set_peak_logging(request.enabled), box.settings())[1]
+            )
+        )
 
     def SetBiasVector(self, request, context):
-        return _ft_settings(self._call(
-            context, lambda box: (box.set_bias_vector(list(request.gages)), box.settings())[1]))
+        return _ft_settings(
+            self._write(
+                context, lambda box: (box.set_bias_vector(list(request.gages)), box.settings())[1]
+            )
+        )
 
     def ClearBias(self, request, context):
-        return _ft_settings(self._call(
-            context, lambda box: (box.clear_bias(), box.settings())[1]))
+        return _ft_settings(self._write(context, lambda box: (box.clear_bias(), box.settings())[1]))
 
     def SetRate(self, request, context):
-        return _ft_communications(self._call(
-            context, lambda box: (box.set_rate_hz(request.rate_hz), box.communications())[1]))
+        return _ft_communications(
+            self._write(
+                context, lambda box: (box.set_rate_hz(request.rate_hz), box.communications())[1]
+            )
+        )
 
     def SetBufferRecords(self, request, context):
-        return _ft_communications(self._call(
-            context, lambda box: (box.set_buffer_records(request.records),
-                                  box.communications())[1]))
+        return _ft_communications(
+            self._write(
+                context,
+                lambda box: (box.set_buffer_records(request.records), box.communications())[1],
+            )
+        )
 
     def SetRdtEnabled(self, request, context):
-        return _ft_communications(self._call(
-            context, lambda box: (box.set_rdt_enabled(request.enabled),
-                                  box.communications())[1]))
+        return _ft_communications(
+            self._write(
+                context, lambda box: (box.set_rdt_enabled(request.enabled), box.communications())[1]
+            )
+        )
 
     def SetEthernetIpEnabled(self, request, context):
-        return _ft_communications(self._call(
-            context, lambda box: (box.set_ethernet_ip_enabled(request.enabled),
-                                  box.communications())[1]))
+        return _ft_communications(
+            self._write(
+                context,
+                lambda box: (box.set_ethernet_ip_enabled(request.enabled), box.communications())[1],
+            )
+        )
 
     def SetMonitorCondition(self, request, context):
         axis = request.axis or None
-        return _ft_condition(self._call(context, lambda box: box.set_monitor_condition(
-            request.index, axis, request.comparison, request.counts,
-            request.output_code, request.enabled)))
+        return _ft_condition(
+            self._write(
+                context,
+                lambda box: box.set_monitor_condition(
+                    request.index,
+                    axis,
+                    request.comparison,
+                    request.counts,
+                    request.output_code,
+                    request.enabled,
+                ),
+            )
+        )
 
     def SetMonitorConditionsEnabled(self, request, context):
-        return _ft_settings(self._call(
-            context, lambda box: (box.set_monitor_conditions_enabled(request.enabled),
-                                  box.settings())[1]))
+        return _ft_settings(
+            self._write(
+                context,
+                lambda box: (box.set_monitor_conditions_enabled(request.enabled), box.settings())[
+                    1
+                ],
+            )
+        )
 
 
 class CameraService(control_pb2_grpc.CameraServicer):
@@ -300,59 +493,125 @@ def _unit(value):
 
 def _ft_scaling(raw):
     return control_pb2.FtScaling(
-        counts_per_force=raw["counts_per_force"], counts_per_torque=raw["counts_per_torque"],
-        force_unit=raw["force_unit"], torque_unit=raw["torque_unit"])
+        counts_per_force=raw["counts_per_force"],
+        counts_per_torque=raw["counts_per_torque"],
+        force_unit=raw["force_unit"],
+        torque_unit=raw["torque_unit"],
+    )
 
 
 def _ft_configuration(raw):
     return control_pb2.FtConfiguration(
-        slot=raw["slot"], active_slot=raw["active_slot"], name=raw["name"],
-        calibration=raw["calibration"], calibration_serial=raw["calibration_serial"],
-        tool_transform=raw["tool_transform"], tool_distance_unit=raw["tool_distance_unit"],
-        tool_angle_unit=raw["tool_angle_unit"], force_unit_code=raw["force_unit_code"],
+        slot=raw["slot"],
+        active_slot=raw["active_slot"],
+        name=raw["name"],
+        calibration=raw["calibration"],
+        calibration_serial=raw["calibration_serial"],
+        tool_transform=raw["tool_transform"],
+        tool_distance_unit=raw["tool_distance_unit"],
+        tool_angle_unit=raw["tool_angle_unit"],
+        force_unit_code=raw["force_unit_code"],
         torque_unit_code=raw["torque_unit_code"],
         tool_distance_unit_code=raw["tool_distance_unit_code"],
         tool_angle_unit_code=raw["tool_angle_unit_code"],
-        sensing_ranges=raw["sensing_ranges"], user_field_a=raw["user_field_a"],
-        user_field_b=raw["user_field_b"], scaling=_ft_scaling(raw))
+        sensing_ranges=raw["sensing_ranges"],
+        user_field_a=raw["user_field_a"],
+        user_field_b=raw["user_field_b"],
+        scaling=_ft_scaling(raw),
+    )
 
 
 def _ft_settings(raw):
     cutoff = raw["filter_cutoff_hz"]
     return control_pb2.FtSettings(
-        active_slot=raw["active_slot"], filter_code=raw["filter_code"],
-        filter_cutoff_hz=cutoff or 0, filter_enabled=cutoff is not None,
+        active_slot=raw["active_slot"],
+        filter_code=raw["filter_code"],
+        filter_cutoff_hz=cutoff or 0,
+        filter_enabled=cutoff is not None,
         peak_logging=raw["peak_logging"],
         monitor_conditions_enabled=raw["monitor_conditions_enabled"],
-        bias_vector=raw["bias_vector"])
+        bias_vector=raw["bias_vector"],
+    )
 
 
 def _ft_communications(raw):
     return control_pb2.FtCommunications(
-        rdt_enabled=raw["rdt_enabled"], rate_hz=raw["rate_hz"],
-        buffer_records=raw["buffer_records"], internal_rate_hz=raw["internal_rate_hz"])
+        rdt_enabled=raw["rdt_enabled"],
+        rate_hz=raw["rate_hz"],
+        buffer_records=raw["buffer_records"],
+        internal_rate_hz=raw["internal_rate_hz"],
+    )
 
 
 def _ft_condition(raw):
     return control_pb2.FtMonitorCondition(
-        index=raw["index"], enabled=raw["enabled"], axis=raw["axis"] or "",
-        axis_code=raw["axis_code"], comparison=raw["comparison"], counts=raw["counts"],
-        output_code=raw["output_code"])
+        index=raw["index"],
+        enabled=raw["enabled"],
+        axis=raw["axis"] or "",
+        axis_code=raw["axis_code"],
+        comparison=raw["comparison"],
+        counts=raw["counts"],
+        output_code=raw["output_code"],
+    )
 
 
 def _ft_reading(runtime, context):
     sensor = runtime.get_force_torque()
+
     if sensor is None:
-        context.abort(grpc.StatusCode.UNAVAILABLE, "Force-torque sensor is unavailable")
+        context.abort(
+            grpc.StatusCode.UNAVAILABLE,
+            "Force-torque sensor is unavailable",
+        )
+        raise RuntimeError("context.abort() unexpectedly returned")
+
     reading = sensor.latest()
+
+    # Wait briefly for the initial sample while the reader starts.
+    deadline = time.monotonic() + 3.0
+
+    while reading is None and getattr(sensor, "error", "") in (
+        "starting",
+        "connecting",
+    ):
+        if time.monotonic() >= deadline or not context.is_active():
+            break
+
+        time.sleep(0.01)
+        reading = sensor.latest()
+
     if reading is None:
-        context.abort(grpc.StatusCode.UNAVAILABLE, "Force-torque sensor has no reading")
+        context.abort(
+            grpc.StatusCode.UNAVAILABLE,
+            "Force-torque sensor has no reading",
+        )
+        raise RuntimeError("context.abort() unexpectedly returned")
+
+    if reading.get("force_unit", "N") != "N" or reading.get("torque_unit", "Nm") != "Nm":
+        context.abort(
+            grpc.StatusCode.FAILED_PRECONDITION,
+            "Legacy readings require N/Nm. Use GetWindow for explicit device units.",
+        )
+        raise RuntimeError("context.abort() unexpectedly returned")
+
     return control_pb2.ForceTorqueReading(
-        fx=reading["fx"], fy=reading["fy"], fz=reading["fz"],
-        tx=reading["tx"], ty=reading["ty"], tz=reading["tz"],
-        sequence=reading["seq"], status=reading["status"], timestamp_s=reading["timestamp"],
+        fx=reading["fx"],
+        fy=reading["fy"],
+        fz=reading["fz"],
+        tx=reading["tx"],
+        ty=reading["ty"],
+        tz=reading["tz"],
+        sequence=reading["seq"],
+        status=reading["status"],
+        timestamp_s=reading["timestamp"],
         faults=ft_status.faults(reading["status"]),
         healthy=ft_status.is_healthy(reading["status"]),
+        received_ns=reading.get("received_ns", 0),
+        sample_id=reading.get("sample_id", 0),
+        config_version=reading.get("config_version", 0),
+        clock_id=CLOCK_ID,
+        force_unit=reading.get("force_unit", "N"),
+        torque_unit=reading.get("torque_unit", "Nm"),
     )
 
 
@@ -360,28 +619,51 @@ def _camera_frame(runtime, camera_id, context):
     camera = _camera(runtime, camera_id, context)
     data = camera.get_image_compressed()
     image = camera.get_image()
+
     if data is None or image is None:
         context.abort(grpc.StatusCode.UNAVAILABLE, "Camera has no frame")
+        raise RuntimeError("context.abort() unexpectedly returned")
+
     height, width = image.shape[:2]
-    return control_pb2.ImageFrame(data=data, encoding="jpeg", width=width, height=height, timestamp_s=time.time())
+
+    return control_pb2.ImageFrame(
+        data=data,
+        encoding="jpeg",
+        width=width,
+        height=height,
+        timestamp_s=time.time(),
+    )
 
 
 def _camera(runtime, camera_id, context):
-    camera_name = {control_pb2.HEAD: "head", control_pb2.HAND: "hand"}.get(camera_id)
+    camera_name = {
+        control_pb2.HEAD: "head",
+        control_pb2.HAND: "hand",
+    }.get(camera_id)
+
     if camera_name is not None:
         return runtime.cameras[camera_name]
+
     if camera_id == control_pb2.BRIO:
         try:
             return runtime.get_brio()
         except RuntimeError as error:
             context.abort(grpc.StatusCode.UNAVAILABLE, str(error))
-    context.abort(grpc.StatusCode.INVALID_ARGUMENT, "A head, hand, or Brio camera is required")
+            raise
+
+    context.abort(
+        grpc.StatusCode.INVALID_ARGUMENT,
+        "A head, hand, or Brio camera is required",
+    )
+
+    raise RuntimeError("context.abort() unexpectedly returned")
 
 
 def _robot_state(raw):
     pose = raw.get("endpoint_pose") or {}
     position = pose.get("position") or [0.0, 0.0, 0.0]
     orientation = pose.get("orientation") or [0.0, 0.0, 0.0, 1.0]
+
     return control_pb2.RobotState(
         timestamp_s=float(raw.get("timestamp", time.time())),
         positions=control_pb2.JointVector(values=raw.get("joint_angles", [])),
@@ -389,10 +671,18 @@ def _robot_state(raw):
         efforts=control_pb2.JointVector(values=raw.get("joint_efforts", [])),
         pose=control_pb2.Pose(
             position=control_pb2.Position(x=position[0], y=position[1], z=position[2]),
-            orientation=control_pb2.Quaternion(x=orientation[0], y=orientation[1], z=orientation[2], w=orientation[3]),
+            orientation=control_pb2.Quaternion(
+                x=orientation[0], y=orientation[1], z=orientation[2], w=orientation[3]
+            ),
         ),
         enabled=bool(raw.get("enabled", False)),
         stopped=bool(raw.get("stopped", False)),
+        received_ns=raw.get("received_ns", 0),
+        sample_id=raw.get("sample_id", 0),
+        clock_id=raw.get("clock_id", CLOCK_ID),
+        source_stamp_s=raw.get("source_stamp_s", 0),
+        velocity_valid=raw.get("velocity_valid", False),
+        session_id=raw.get("session_id", ""),
     )
 
 
@@ -400,6 +690,48 @@ def build_server(runtime):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=16))
     control_pb2_grpc.add_RobotControlServicer_to_server(RobotService(runtime), server)
     control_pb2_grpc.add_ForceTorqueServicer_to_server(ForceTorqueService(runtime), server)
-    control_pb2_grpc.add_ForceTorqueConfigServicer_to_server(ForceTorqueConfigService(runtime), server)
+    control_pb2_grpc.add_ForceTorqueConfigServicer_to_server(
+        ForceTorqueConfigService(runtime), server
+    )
     control_pb2_grpc.add_CameraServicer_to_server(CameraService(runtime), server)
+
     return server
+
+
+def _history_args(request):
+    if request.clock_id and request.clock_id != CLOCK_ID:
+        raise ValueError("clock_id changed; discard old bridge timestamps")
+
+    if (request.start_ns or request.end_ns) and request.clock_id != CLOCK_ID:
+        raise ValueError("explicit time windows require the current clock_id")
+
+    return {
+        "session_id": request.session_id,
+        "after_id": request.after_id,
+        "start_ns": request.start_ns,
+        "end_ns": request.end_ns,
+        "limit": request.limit or 1000,
+    }
+
+
+def _history_info(batch):
+    return control_pb2.HistoryInfo(
+        **{
+            key: batch[key]
+            for key in (
+                "clock_id",
+                "session_id",
+                "server_ns",
+                "start_ns",
+                "end_ns",
+                "oldest_id",
+                "newest_id",
+                "next_id",
+                "overflow",
+                "session_changed",
+                "truncated",
+                "cursor_ahead",
+                "incomplete_window",
+            )
+        }
+    )

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Dynamic response test: what does a configuration do to a live signal?
 
 The static survey answers "which setting is quietest" by measuring an untouched
@@ -45,14 +44,15 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bridge"))
 
-from _rdt import AXES, stream  # noqa: E402
-from ft_survey import _kernel_taps, _lowpass_kernel, pipe_filter_mean, pipe_mean  # noqa: E402
-from robot_api.hardware.ft_config import FILTER_CUTOFF_HZ, NetBoxConfig  # noqa: E402
+from _rdt import AXES, stream
+from ft_survey import _kernel_taps, _lowpass_kernel, pipe_filter_mean, pipe_mean
+from robot_api.hardware.ft_config import FILTER_CUTOFF_HZ, NetBoxConfig
 
 PIPELINES = ("subsample", "mean", "filter+mean")
 
 
 # ── capture ──────────────────────────────────────────────────────────────────
+
 
 def run_capture(host, seconds, scale_f, scale_t, lead_in=5.0):
     """One continuous stream, with a running clock so you can pace yourself."""
@@ -82,6 +82,7 @@ def run_capture(host, seconds, scale_f, scale_t, lead_in=5.0):
 
 
 # ── pipelines with an honest time base ───────────────────────────────────────
+
 
 def apply_pipeline(name, signal, ratio, rate_hz):
     """Return (times, values) at the target rate.
@@ -125,14 +126,16 @@ def ideal_reference(signal, rate_hz, target_hz, times):
     taps = 2049
     cutoff = 0.45 * target_hz / rate_hz
     offset = signal.mean()
-    padded = np.concatenate([np.full(taps, signal[0] - offset), signal - offset,
-                             np.full(taps, signal[-1] - offset)])
+    padded = np.concatenate(
+        [np.full(taps, signal[0] - offset), signal - offset, np.full(taps, signal[-1] - offset)]
+    )
     filtered = np.convolve(padded, _lowpass_kernel(cutoff, taps), mode="same")
     filtered = filtered[taps:-taps] + offset
     return np.interp(times, np.arange(len(signal)) / rate_hz, filtered)
 
 
 # ── metrics, none of which need an event ─────────────────────────────────────
+
 
 def noise_floor(signal, rate_hz, window_s=0.5):
     """Quietest window in the record. Finds the moments you were not touching
@@ -141,7 +144,7 @@ def noise_floor(signal, rate_hz, window_s=0.5):
     blocks = len(signal) // span
     if blocks < 2:
         return float(signal.std())
-    trimmed = signal[:blocks * span].reshape(blocks, span)
+    trimmed = signal[: blocks * span].reshape(blocks, span)
     return float(trimmed.std(axis=1).min())
 
 
@@ -163,17 +166,20 @@ def transfer(reference, output, rate_hz, segment=256):
     power = np.zeros(segment // 2 + 1)
     blocks = 0
     for start in range(0, count - segment + 1, step):
-        a = np.fft.rfft((reference[start:start + segment] -
-                         reference[start:start + segment].mean()) * window)
-        b = np.fft.rfft((output[start:start + segment] -
-                         output[start:start + segment].mean()) * window)
+        a = np.fft.rfft(
+            (reference[start : start + segment] - reference[start : start + segment].mean())
+            * window
+        )
+        b = np.fft.rfft(
+            (output[start : start + segment] - output[start : start + segment].mean()) * window
+        )
         cross += b * np.conj(a)
         power += np.abs(a) ** 2
         blocks += 1
     if not blocks:
         return np.array([]), np.array([]), np.array([])
     freqs = np.fft.rfftfreq(segment, 1.0 / rate_hz)
-    strong = power > power.max() * 1e-4          # ignore bands you never excited
+    strong = power > power.max() * 1e-4  # ignore bands you never excited
     magnitude = np.where(strong, np.abs(cross) / np.maximum(power, 1e-30), np.nan)
     return freqs, magnitude, power
 
@@ -200,8 +206,12 @@ def measured_lag_ms(reference, output, rate_hz, span=12):
     if not a.any() or not b.any():
         return float("nan")
     lags = np.arange(-span, span + 1)
-    scores = np.array([np.dot(a[max(0, -lag):count - max(0, lag)],
-                              b[max(0, lag):count - max(0, -lag)]) for lag in lags])
+    scores = np.array(
+        [
+            np.dot(a[max(0, -lag) : count - max(0, lag)], b[max(0, lag) : count - max(0, -lag)])
+            for lag in lags
+        ]
+    )
     peak = int(np.argmax(scores))
     shift = 0.0
     if 0 < peak < len(scores) - 1:
@@ -222,7 +232,7 @@ def analyse(rows, rate_hz, target_hz, unit_f, unit_t):
     report, spectra = [], {}
 
     print(f"\noversampling ratio {rate_hz:g} Hz -> {target_hz:g} Hz = {ratio}x\n")
-    header = (f"  {'axis':<4} {'floor':>9} {'activity':>9} {'moved':>7}")
+    header = f"  {'axis':<4} {'floor':>9} {'activity':>9} {'moved':>7}"
     print(header + "   (activity = sigma over the whole record)")
     active = []
     for column, axis in enumerate(AXES):
@@ -237,8 +247,7 @@ def analyse(rows, rate_hz, target_hz, unit_f, unit_t):
         print("\n  nothing moved much above the noise floor - was the sensor touched?")
         return [], {}, ratio
 
-    print(f"\nscoring {len(active)} excited axes against the ideal "
-          f"{target_hz:g} Hz reference\n")
+    print(f"\nscoring {len(active)} excited axes against the ideal {target_hz:g} Hz reference\n")
     for column, axis, floor, activity in active:
         signal = rows[:, column]
         unit = unit_f if column < 3 else unit_t
@@ -250,14 +259,21 @@ def analyse(rows, rate_hz, target_hz, unit_f, unit_t):
             error = output - reference
             freqs, magnitude, power = transfer(reference, output, target_hz)
             row = {
-                "axis": axis, "pipeline": pipeline, "unit": unit,
-                "floor": floor, "activity": activity,
+                "axis": axis,
+                "pipeline": pipeline,
+                "unit": unit,
+                "floor": floor,
+                "activity": activity,
                 "rms_error": float(error.std()),
                 "error_ratio": float(error.std() / activity) if activity else float("nan"),
-                "peak_retention": (float(np.abs(output - np.median(output)).max() /
-                                         np.abs(reference - np.median(reference)).max())
-                                   if np.abs(reference - np.median(reference)).max() else
-                                   float("nan")),
+                "peak_retention": (
+                    float(
+                        np.abs(output - np.median(output)).max()
+                        / np.abs(reference - np.median(reference)).max()
+                    )
+                    if np.abs(reference - np.median(reference)).max()
+                    else float("nan")
+                ),
                 "lag_ms": measured_lag_ms(reference, output, target_hz),
                 "extra_latency_ms": extra_latency_ms(pipeline, ratio, rate_hz),
             }
@@ -273,15 +289,20 @@ def analyse(rows, rate_hz, target_hz, unit_f, unit_t):
 def print_report(report, target_hz):
     if not report:
         return
-    print(f"  {'axis':<4} {'pipeline':<12} {'rms err':>9} {'err/sig':>8} "
-          f"{'peak':>6} " + " ".join(f"{low:g}-{high:g}Hz".rjust(9) for low, high in BANDS) +
-          f" {'lag':>8} {'+lag':>8}")
+    print(
+        f"  {'axis':<4} {'pipeline':<12} {'rms err':>9} {'err/sig':>8} "
+        f"{'peak':>6} "
+        + " ".join(f"{low:g}-{high:g}Hz".rjust(9) for low, high in BANDS)
+        + f" {'lag':>8} {'+lag':>8}"
+    )
     print("  " + "-" * 96)
     for row in sorted(report, key=lambda r: (r["axis"], r["rms_error"])):
         bands = " ".join(f"{row[f'transfer_{low:g}_{high:g}']:>9.2f}" for low, high in BANDS)
-        print(f"  {row['axis']:<4} {row['pipeline']:<12} {row['rms_error']:>9.5f} "
-              f"{row['error_ratio']:>7.1%} {row['peak_retention']:>6.2f} {bands} "
-              f"{row['lag_ms']:>5.1f} ms {row['extra_latency_ms']:>5.1f} ms")
+        print(
+            f"  {row['axis']:<4} {row['pipeline']:<12} {row['rms_error']:>9.5f} "
+            f"{row['error_ratio']:>7.1%} {row['peak_retention']:>6.2f} {bands} "
+            f"{row['lag_ms']:>5.1f} ms {row['extra_latency_ms']:>5.1f} ms"
+        )
 
     print("\n  averaged over excited axes:")
     for pipeline in PIPELINES:
@@ -290,110 +311,147 @@ def print_report(report, target_hz):
             continue
         low_band = np.nanmean([r[f"transfer_{BANDS[0][0]:g}_{BANDS[0][1]:g}"] for r in rows])
         high_band = np.nanmean([r[f"transfer_{BANDS[-1][0]:g}_{BANDS[-1][1]:g}"] for r in rows])
-        print(f"    {pipeline:<12} error {np.mean([r['error_ratio'] for r in rows]):>6.1%} "
-              f"of signal, keeps {low_band:.2f} of slow content and {high_band:.2f} "
-              f"of {BANDS[-1][0]:g}-{BANDS[-1][1]:g} Hz, "
-              f"lag {np.nanmean([r['lag_ms'] for r in rows]):+.1f} ms")
+        print(
+            f"    {pipeline:<12} error {np.mean([r['error_ratio'] for r in rows]):>6.1%} "
+            f"of signal, keeps {low_band:.2f} of slow content and {high_band:.2f} "
+            f"of {BANDS[-1][0]:g}-{BANDS[-1][1]:g} Hz, "
+            f"lag {np.nanmean([r['lag_ms'] for r in rows]):+.1f} ms"
+        )
 
     covered = max(r["excited_to_hz"] for r in report)
     if covered < target_hz / 4:
-        print(f"\n  NOTE: you only excited content up to {covered:.0f} Hz, so the "
-              f"{BANDS[-1][0]:g}-{BANDS[-1][1]:g} Hz column is extrapolated from very "
-              "little. Redo it with sharper knocks to judge fast content.")
+        print(
+            f"\n  NOTE: you only excited content up to {covered:.0f} Hz, so the "
+            f"{BANDS[-1][0]:g}-{BANDS[-1][1]:g} Hz column is extrapolated from very "
+            "little. Redo it with sharper knocks to judge fast content."
+        )
 
     best = min(report, key=lambda r: r["error_ratio"])
-    print(f"\n  closest to the ideal {target_hz:g} Hz signal: {best['pipeline']} "
-          f"({best['error_ratio']:.1%} error on {best['axis']})")
+    print(
+        f"\n  closest to the ideal {target_hz:g} Hz signal: {best['pipeline']} "
+        f"({best['error_ratio']:.1%} error on {best['axis']})"
+    )
     aliasing = [r for r in report if r["pipeline"] == "subsample"]
     if aliasing and np.mean([r["error_ratio"] for r in aliasing]) > 0.2:
-        print(f"  subsample sits {np.mean([r['error_ratio'] for r in aliasing]):.0%} off the "
-              "ideal - that gap is aliasing, and no amount of downstream smoothing "
-              "removes it.")
-    fast_loss = [r for r in report
-                 if r[f"transfer_{BANDS[-1][0]:g}_{BANDS[-1][1]:g}"] < 0.5
-                 and r["pipeline"] != "subsample"]
+        print(
+            f"  subsample sits {np.mean([r['error_ratio'] for r in aliasing]):.0%} off the "
+            "ideal - that gap is aliasing, and no amount of downstream smoothing "
+            "removes it."
+        )
+    fast_loss = [
+        r
+        for r in report
+        if r[f"transfer_{BANDS[-1][0]:g}_{BANDS[-1][1]:g}"] < 0.5 and r["pipeline"] != "subsample"
+    ]
     if fast_loss:
-        print(f"  NOTE: {len({r['pipeline'] for r in fast_loss})} pipeline(s) keep under half "
-              f"the {BANDS[-1][0]:g}-{BANDS[-1][1]:g} Hz content. If fast contact "
-              "transitions matter, carry a peak-hold per tick alongside the average.")
+        print(
+            f"  NOTE: {len({r['pipeline'] for r in fast_loss})} pipeline(s) keep under half "
+            f"the {BANDS[-1][0]:g}-{BANDS[-1][1]:g} Hz content. If fast contact "
+            "transitions matter, carry a peak-hold per tick alongside the average."
+        )
 
 
 def plot(rows, report, spectra, rate_hz, target_hz, ratio, output):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     fig, axes = plt.subplots(2, 2, figsize=(15, 11))
     colours = {"subsample": "#e76f51", "mean": "#e9c46a", "filter+mean": "#2a9d8f"}
-    busiest = max({r["axis"] for r in report},
-                  key=lambda a: next(r["activity"] for r in report if r["axis"] == a))
+    busiest = max(
+        {r["axis"] for r in report},
+        key=lambda a: next(r["activity"] for r in report if r["axis"] == a),
+    )
     column = AXES.index(busiest)
     signal = rows[:, column]
 
     # the busiest half second, so the overlay shows the hardest case
     span = int(0.5 * rate_hz)
     blocks = len(signal) // span
-    start = int(np.argmax(signal[:blocks * span].reshape(blocks, span).std(axis=1))) * span
+    start = int(np.argmax(signal[: blocks * span].reshape(blocks, span).std(axis=1))) * span
     window = slice(start, start + span)
     times = np.arange(len(signal)) / rate_hz
-    axes[0][0].plot(times[window], signal[window], color="#264653", linewidth=0.7,
-                    label=f"{rate_hz:g} Hz truth")
+    axes[0][0].plot(
+        times[window], signal[window], color="#264653", linewidth=0.7, label=f"{rate_hz:g} Hz truth"
+    )
     for pipeline in PIPELINES:
         pipe_times, pipe_values = apply_pipeline(pipeline, signal, ratio, rate_hz)
         select = (pipe_times >= times[window][0]) & (pipe_times <= times[window][-1])
-        axes[0][0].plot(pipe_times[select], pipe_values[select], marker="o", markersize=2.5,
-                        linewidth=1.0, color=colours[pipeline], label=pipeline)
+        axes[0][0].plot(
+            pipe_times[select],
+            pipe_values[select],
+            marker="o",
+            markersize=2.5,
+            linewidth=1.0,
+            color=colours[pipeline],
+            label=pipeline,
+        )
     axes[0][0].set_xlabel("time (s)", fontsize=8)
     axes[0][0].set_ylabel(busiest, fontsize=8)
-    axes[0][0].set_title(f"busiest half second on {busiest}: what each pipeline reports",
-                         fontsize=9)
+    axes[0][0].set_title(
+        f"busiest half second on {busiest}: what each pipeline reports", fontsize=9
+    )
     axes[0][0].legend(fontsize=7)
     axes[0][0].grid(alpha=0.3)
 
     for (axis, pipeline), (freqs, magnitude) in spectra.items():
         if axis != busiest or not len(freqs):
             continue
-        axes[0][1].plot(freqs[1:], magnitude[1:], color=colours[pipeline],
-                        linewidth=1.2, label=pipeline)
+        axes[0][1].plot(
+            freqs[1:], magnitude[1:], color=colours[pipeline], linewidth=1.2, label=pipeline
+        )
     axes[0][1].axhline(1.0, color="k", linestyle="--", linewidth=0.8)
     axes[0][1].set_ylim(0, 1.4)
     axes[0][1].set_xlabel("frequency (Hz)", fontsize=8)
     axes[0][1].set_ylabel("amplitude preserved", fontsize=8)
-    axes[0][1].set_title(f"how much of each frequency survives ({busiest}); "
-                         "1.0 = intact", fontsize=9)
+    axes[0][1].set_title(
+        f"how much of each frequency survives ({busiest}); 1.0 = intact", fontsize=9
+    )
     axes[0][1].legend(fontsize=7)
     axes[0][1].grid(alpha=0.3)
 
     labels = [f"{r['axis']} + {r['pipeline']}" for r in report]
-    axes[1][0].barh(range(len(report)), [r["error_ratio"] for r in report],
-                    color=[colours[r["pipeline"]] for r in report])
+    axes[1][0].barh(
+        range(len(report)),
+        [r["error_ratio"] for r in report],
+        color=[colours[r["pipeline"]] for r in report],
+    )
     axes[1][0].set_yticks(range(len(report)))
     axes[1][0].set_yticklabels(labels, fontsize=6)
     axes[1][0].invert_yaxis()
     axes[1][0].set_xlabel("rms error / signal size", fontsize=8)
-    axes[1][0].set_title(f"distance from the ideal {target_hz:g} Hz signal (lower is better)",
-                         fontsize=9)
+    axes[1][0].set_title(
+        f"distance from the ideal {target_hz:g} Hz signal (lower is better)", fontsize=9
+    )
     axes[1][0].grid(alpha=0.3, axis="x")
 
     for pipeline in PIPELINES:
         rows_for = [r for r in report if r["pipeline"] == pipeline]
-        axes[1][1].scatter([r["lag_ms"] + r["extra_latency_ms"] for r in rows_for],
-                           [r[f"transfer_{BANDS[-1][0]:g}_{BANDS[-1][1]:g}"] for r in rows_for],
-                           color=colours[pipeline], s=30, label=pipeline)
+        axes[1][1].scatter(
+            [r["lag_ms"] + r["extra_latency_ms"] for r in rows_for],
+            [r[f"transfer_{BANDS[-1][0]:g}_{BANDS[-1][1]:g}"] for r in rows_for],
+            color=colours[pipeline],
+            s=30,
+            label=pipeline,
+        )
     axes[1][1].set_xlabel("total lag (ms)", fontsize=8)
     axes[1][1].set_ylabel(f"{BANDS[-1][0]:g}-{BANDS[-1][1]:g} Hz preserved", fontsize=8)
     axes[1][1].set_title("the actual trade: latency against fast-signal fidelity", fontsize=9)
     axes[1][1].legend(fontsize=7)
     axes[1][1].grid(alpha=0.3)
 
-    fig.suptitle(f"Net F/T dynamic response - captured at {rate_hz:g} Hz, "
-                 f"evaluated at {target_hz:g} Hz", fontsize=11)
+    fig.suptitle(
+        f"Net F/T dynamic response - captured at {rate_hz:g} Hz, evaluated at {target_hz:g} Hz",
+        fontsize=11,
+    )
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     fig.savefig(output, dpi=130)
     print(f"wrote {output}")
 
 
 # ── what you actually did ────────────────────────────────────────────────────
+
 
 def _episodes(scaled, rate_hz, threshold_k, gap_s, min_duration_s):
     """Contiguous runs above threshold, with brief dips bridged."""
@@ -414,12 +472,12 @@ def _episodes(scaled, rate_hz, threshold_k, gap_s, min_duration_s):
             merged[-1][1] = end
         else:
             merged.append([begin, end])
-    return [(begin, end) for begin, end in merged
-            if end - begin >= min_duration_s * rate_hz]
+    return [(begin, end) for begin, end in merged if end - begin >= min_duration_s * rate_hz]
 
 
-def moments(rows, rate_hz, floors, threshold_k=10.0, span_fraction=0.02,
-            gap_s=0.25, min_duration_s=0.05):
+def moments(
+    rows, rate_hz, floors, threshold_k=10.0, span_fraction=0.02, gap_s=0.25, min_duration_s=0.05
+):
     """The distinct things you did to the sensor, for review only.
 
     Nothing in the scoring uses this - the metrics are computed over the whole
@@ -451,21 +509,33 @@ def moments(rows, rate_hz, floors, threshold_k=10.0, span_fraction=0.02,
             peak = begin + int(np.argmax(scaled[begin:end]))
             # fastest slope inside the episode, in units per second: separates a
             # knock from a lean without needing to classify either
-            slope = float(np.abs(np.diff(centred[begin:end])).max() * rate_hz) if end - begin > 1 else 0.0
-            found.append({"time_s": begin / rate_hz, "duration_s": (end - begin) / rate_hz,
-                          "axis": axis, "strength": float(scaled[peak]),
-                          "value": float(centred[peak]), "peak_s": peak / rate_hz,
-                          "slope": slope})
+            slope = (
+                float(np.abs(np.diff(centred[begin:end])).max() * rate_hz)
+                if end - begin > 1
+                else 0.0
+            )
+            found.append(
+                {
+                    "time_s": begin / rate_hz,
+                    "duration_s": (end - begin) / rate_hz,
+                    "axis": axis,
+                    "strength": float(scaled[peak]),
+                    "value": float(centred[peak]),
+                    "peak_s": peak / rate_hz,
+                    "slope": slope,
+                }
+            )
     return sorted(found, key=lambda event: event["time_s"])
 
 
 def plot_timeline(rows, rate_hz, floors, found, unit_f, unit_t, output):
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     times = np.arange(len(rows)) / rate_hz
-    step = max(1, int(rate_hz // 200))          # thin for drawing only
+    step = max(1, int(rate_hz // 200))  # thin for drawing only
     fig, axes = plt.subplots(6, 1, figsize=(15, 12), sharex=True)
     for column, (axis, panel) in enumerate(zip(AXES, axes)):
         signal = rows[:, column]
@@ -477,15 +547,23 @@ def plot_timeline(rows, rate_hz, floors, found, unit_f, unit_t, output):
         for event in found:
             if event["axis"] != axis:
                 continue
-            panel.plot([event["time_s"], event["time_s"] + event["duration_s"]],
-                       [high + 0.06 * (high - low)] * 2, color="#e76f51", linewidth=3,
-                       solid_capstyle="butt", clip_on=False)
+            panel.plot(
+                [event["time_s"], event["time_s"] + event["duration_s"]],
+                [high + 0.06 * (high - low)] * 2,
+                color="#e76f51",
+                linewidth=3,
+                solid_capstyle="butt",
+                clip_on=False,
+            )
         panel.set_ylabel(f"{axis} ({unit_f if column < 3 else unit_t})", fontsize=8)
         panel.grid(alpha=0.3)
         panel.tick_params(labelsize=7)
     axes[-1].set_xlabel("time (s)", fontsize=8)
-    axes[0].set_title(f"the whole capture; red bars mark where each axis was loaded "
-                      f"above 10x its own noise floor ({len(found)} episodes)", fontsize=10)
+    axes[0].set_title(
+        f"the whole capture; red bars mark where each axis was loaded "
+        f"above 10x its own noise floor ({len(found)} episodes)",
+        fontsize=10,
+    )
     fig.tight_layout()
     fig.savefig(output, dpi=120)
     print(f"wrote {output}")
@@ -508,81 +586,116 @@ def zero_shift(rows, rate_hz, floors, quiet_s=4.0, quiet_k=3.0):
     if len(rows) < 3 * span:
         return {}
     windows = {"start": rows[:span], "end": rows[-span:]}
-    noisy = [name for name, window in windows.items()
-             if any(window[:, column].std() > quiet_k * (floors.get(axis) or np.inf)
-                    for column, axis in enumerate(AXES))]
+    noisy = [
+        name
+        for name, window in windows.items()
+        if any(
+            window[:, column].std() > quiet_k * (floors.get(axis) or np.inf)
+            for column, axis in enumerate(AXES)
+        )
+    ]
     if noisy:
         return {"unusable": noisy}
 
     before = windows["start"].mean(axis=0)
     after = windows["end"].mean(axis=0)
-    result = {"per_axis": {axis: {"shift": float(after[column] - before[column]),
-                                 "floors": (float(abs(after[column] - before[column]) /
-                                                  floors[axis]) if floors.get(axis) else 0.0)}
-                          for column, axis in enumerate(AXES)}}
+    result = {
+        "per_axis": {
+            axis: {
+                "shift": float(after[column] - before[column]),
+                "floors": (
+                    float(abs(after[column] - before[column]) / floors[axis])
+                    if floors.get(axis)
+                    else 0.0
+                ),
+            }
+            for column, axis in enumerate(AXES)
+        }
+    }
     for name, part in (("force", slice(0, 3)), ("torque", slice(3, 6))):
         first, last = before[part], after[part]
         length, new_length = float(np.linalg.norm(first)), float(np.linalg.norm(last))
         if length <= 0 or new_length <= 0:
             continue
         cosine = float(np.clip(first @ last / (length * new_length), -1.0, 1.0))
-        result[name] = {"magnitude": length, "new_magnitude": new_length,
-                        "relative": (new_length - length) / length,
-                        "rotation_deg": float(np.degrees(np.arccos(cosine))),
-                        "largest_component": float(np.abs(last - first).max())}
+        result[name] = {
+            "magnitude": length,
+            "new_magnitude": new_length,
+            "relative": (new_length - length) / length,
+            "rotation_deg": float(np.degrees(np.arccos(cosine))),
+            "largest_component": float(np.abs(last - first).max()),
+        }
     return result
 
 
 def print_moments(found, floors, unit_f, unit_t, shifts=None):
-    print(f"\n{len(found)} episodes above 10x the noise floor, per axis "
-          "(axes overlap - one push loads several):\n")
-    print(f"  {'start':>7} {'lasted':>8} {'axis':<5} {'peak':>12} {'vs floor':>9} "
-          f"{'fastest':>12}")
+    print(
+        f"\n{len(found)} episodes above 10x the noise floor, per axis "
+        "(axes overlap - one push loads several):\n"
+    )
+    print(f"  {'start':>7} {'lasted':>8} {'axis':<5} {'peak':>12} {'vs floor':>9} {'fastest':>12}")
     print("  " + "-" * 60)
     for event in found:
         unit = unit_f if event["axis"] in AXES[:3] else unit_t
-        print(f"  {event['time_s']:>6.2f}s {event['duration_s']:>7.2f}s {event['axis']:<5} "
-              f"{event['value']:>+8.3f} {unit:<3} {event['strength']:>8.0f}x "
-              f"{event['slope']:>9.0f} {unit}/s")
+        print(
+            f"  {event['time_s']:>6.2f}s {event['duration_s']:>7.2f}s {event['axis']:<5} "
+            f"{event['value']:>+8.3f} {unit:<3} {event['strength']:>8.0f}x "
+            f"{event['slope']:>9.0f} {unit}/s"
+        )
     by_axis = {}
     for event in found:
         by_axis.setdefault(event["axis"], []).append(event)
-    print("\n  per axis: " + "   ".join(
-        f"{axis} {len(events)} episodes, {sum(e['duration_s'] for e in events):.0f}s active"
-        for axis, events in sorted(by_axis.items())))
+    print(
+        "\n  per axis: "
+        + "   ".join(
+            f"{axis} {len(events)} episodes, {sum(e['duration_s'] for e in events):.0f}s active"
+            for axis, events in sorted(by_axis.items())
+        )
+    )
     if not shifts:
         return
     if "unusable" in shifts:
-        print(f"\n  zero check skipped: the {' and '.join(shifts['unusable'])} of the run "
-              "was not quiet, so there is no unloaded reading to compare against. "
-              "Leave a few still seconds at both ends to get this.")
+        print(
+            f"\n  zero check skipped: the {' and '.join(shifts['unusable'])} of the run "
+            "was not quiet, so there is no unloaded reading to compare against. "
+            "Leave a few still seconds at both ends to get this."
+        )
         return
 
     print("\n  unloaded reading, start of run vs end:")
     for axis, shift in shifts["per_axis"].items():
         unit = unit_f if axis in AXES[:3] else unit_t
-        print(f"    {axis:<3} {shift['shift']:>+8.4f} {unit:<3} "
-              f"({shift['floors']:>4.0f}x the noise floor)")
+        print(
+            f"    {axis:<3} {shift['shift']:>+8.4f} {unit:<3} "
+            f"({shift['floors']:>4.0f}x the noise floor)"
+        )
     for name, unit in (("force", unit_f), ("torque", unit_t)):
         part = shifts.get(name)
         if not part:
             continue
-        print(f"    |{name}| {part['magnitude']:.4f} -> {part['new_magnitude']:.4f} {unit} "
-              f"({part['relative']:+.2%}), direction rotated "
-              f"{part['rotation_deg']:.2f} deg, largest component moved "
-              f"{part['largest_component']:.4f} {unit}")
+        print(
+            f"    |{name}| {part['magnitude']:.4f} -> {part['new_magnitude']:.4f} {unit} "
+            f"({part['relative']:+.2%}), direction rotated "
+            f"{part['rotation_deg']:.2f} deg, largest component moved "
+            f"{part['largest_component']:.4f} {unit}"
+        )
     force = shifts.get("force")
     if force and abs(force["relative"]) < 0.01 and force["rotation_deg"] > 0.5:
-        print("    Components moved but the magnitude held: that is the gravity vector "
-              "rotating, not the sensor drifting. The tool ended up hanging at a "
-              "different angle. Re-bias per pose, or compensate gravity from the "
-              "known pose - averaging cannot help either way.")
+        print(
+            "    Components moved but the magnitude held: that is the gravity vector "
+            "rotating, not the sensor drifting. The tool ended up hanging at a "
+            "different angle. Re-bias per pose, or compensate gravity from the "
+            "known pose - averaging cannot help either way."
+        )
     elif force and abs(force["relative"]) > 0.02:
-        print("    The magnitude itself changed, which pose alone does not explain: "
-              "either the sensor zero moved or something is still resting on the tool.")
+        print(
+            "    The magnitude itself changed, which pose alone does not explain: "
+            "either the sensor zero moved or something is still resting on the tool."
+        )
 
 
 # ── cross-run comparison ─────────────────────────────────────────────────────
+
 
 def quiet_blocks(signal, rate_hz, window_s=0.5, keep=0.2):
     """The quietest `keep` fraction of the record, concatenated.
@@ -594,9 +707,9 @@ def quiet_blocks(signal, rate_hz, window_s=0.5, keep=0.2):
     blocks = len(signal) // span
     if blocks < 4:
         return signal
-    trimmed = signal[:blocks * span].reshape(blocks, span)
+    trimmed = signal[: blocks * span].reshape(blocks, span)
     order = np.argsort(trimmed.std(axis=1))
-    return trimmed[order[:max(2, int(blocks * keep))]].ravel()
+    return trimmed[order[: max(2, int(blocks * keep))]].ravel()
 
 
 def compare(paths, target_hz):
@@ -626,35 +739,52 @@ def compare(paths, target_hz):
             fast = (freqs >= target_hz / 20) & (freqs <= target_hz / 2)
             if in_band.any() and spectrum[in_band].sum():
                 fractions.append(float(spectrum[fast].sum() / spectrum[in_band].sum()))
-        print(f"{Path(path).name:<28} {rate_hz:>7.0f} "
-              f"{('raw' if cutoff is None else f'{cutoff} Hz'):>8} "
-              f"{np.median(floors):>10.5f} {np.median(fractions):>11.3f}")
-    print(f"\nfloor is the quietest stretch of each run; hf noise is the share of that "
-          f"noise sitting between {target_hz / 20:g} and {target_hz / 2:g} Hz. A lower "
-          "floor with an unchanged share means the configuration is simply quieter; the "
-          "share dropping too means it is also rolling the top of your band off.")
+        print(
+            f"{Path(path).name:<28} {rate_hz:>7.0f} "
+            f"{('raw' if cutoff is None else f'{cutoff} Hz'):>8} "
+            f"{np.median(floors):>10.5f} {np.median(fractions):>11.3f}"
+        )
+    print(
+        f"\nfloor is the quietest stretch of each run; hf noise is the share of that "
+        f"noise sitting between {target_hz / 20:g} and {target_hz / 2:g} Hz. A lower "
+        "floor with an unchanged share means the configuration is simply quieter; the "
+        "share dropping too means it is also rolling the top of your band off."
+    )
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--host", default="192.168.1.11")
-    parser.add_argument("--seconds", type=float, default=60.0,
-                        help="how long to keep working the sensor")
-    parser.add_argument("--target-hz", type=float, default=100.0,
-                        help="the rate your consumer actually runs at")
+    parser.add_argument(
+        "--seconds", type=float, default=60.0, help="how long to keep working the sensor"
+    )
+    parser.add_argument(
+        "--target-hz", type=float, default=100.0, help="the rate your consumer actually runs at"
+    )
     parser.add_argument("--rate", type=int, default=7000, help="device output rate for this run")
     parser.add_argument("--filter", type=int, default=0, help="device filter code for this run")
     parser.add_argument("--lead-in", type=float, default=5.0)
     parser.add_argument("--output", default="ft_step.png")
     parser.add_argument("--save", default="ft_step_raw.npz")
     parser.add_argument("--no-plot", action="store_true")
-    parser.add_argument("--replot", action="store_true",
-                        help="re-analyse --save from a previous run; no device access")
-    parser.add_argument("--timeline", action="store_true",
-                        help="with --replot, also list and plot the strongest moments")
-    parser.add_argument("--compare", nargs="+", metavar="NPZ",
-                        help="compare saved runs instead of capturing; no device access")
+    parser.add_argument(
+        "--replot",
+        action="store_true",
+        help="re-analyse --save from a previous run; no device access",
+    )
+    parser.add_argument(
+        "--timeline",
+        action="store_true",
+        help="with --replot, also list and plot the strongest moments",
+    )
+    parser.add_argument(
+        "--compare",
+        nargs="+",
+        metavar="NPZ",
+        help="compare saved runs instead of capturing; no device access",
+    )
     args = parser.parse_args()
 
     if args.compare:
@@ -670,14 +800,21 @@ def main():
         if report and not args.no_plot:
             plot(rows, report, spectra, rate_hz, args.target_hz, ratio, args.output)
         if args.timeline:
-            floors = {axis: noise_floor(rows[:, column], rate_hz)
-                      for column, axis in enumerate(AXES)}
+            floors = {
+                axis: noise_floor(rows[:, column], rate_hz) for column, axis in enumerate(AXES)
+            }
             found = moments(rows, rate_hz, floors)
-            print_moments(found, floors, unit_f, unit_t,
-                          zero_shift(rows, rate_hz, floors))
+            print_moments(found, floors, unit_f, unit_t, zero_shift(rows, rate_hz, floors))
             if not args.no_plot:
-                plot_timeline(rows, rate_hz, floors, found, unit_f, unit_t,
-                              args.output.replace(".png", "_timeline.png"))
+                plot_timeline(
+                    rows,
+                    rate_hz,
+                    floors,
+                    found,
+                    unit_f,
+                    unit_t,
+                    args.output.replace(".png", "_timeline.png"),
+                )
         return
 
     box = NetBoxConfig(args.host)
@@ -686,38 +823,49 @@ def main():
     scale_f, scale_t = config["counts_per_force"], config["counts_per_torque"]
     original = box.communications()
     original_filter = box.settings()["filter_code"]
-    print(f"Net F/T {identity['ip']} fw {identity['firmware']}  "
-          f"slot {config['active_slot']} units {config['force_unit']}/{config['torque_unit']}")
+    print(
+        f"Net F/T {identity['ip']} fw {identity['firmware']}  "
+        f"slot {config['active_slot']} units {config['force_unit']}/{config['torque_unit']}"
+    )
 
     try:
         effective = box.set_rate_hz(args.rate)
         box.set_filter(args.filter)
         time.sleep(0.3)
         cutoff = FILTER_CUTOFF_HZ[args.filter]
-        print(f"capturing at {effective} Hz, filter "
-              f"{'off' if cutoff is None else f'{cutoff} Hz'}")
+        print(f"capturing at {effective} Hz, filter {'off' if cutoff is None else f'{cutoff} Hz'}")
         rows, stats = run_capture(args.host, args.seconds, scale_f, scale_t, args.lead_in)
     finally:
         box.set_rate_hz(original["rate_hz"])
         box.set_filter(original_filter)
-        print(f"  restored: {box.communications()['rate_hz']} Hz, "
-              f"filter code {box.settings()['filter_code']}")
+        print(
+            f"  restored: {box.communications()['rate_hz']} Hz, "
+            f"filter code {box.settings()['filter_code']}"
+        )
 
-    print(f"  {stats['samples']} samples, {stats['measured_hz']:.0f} Hz measured, "
-          f"{stats['dropped']} dropped")
+    print(
+        f"  {stats['samples']} samples, {stats['measured_hz']:.0f} Hz measured, "
+        f"{stats['dropped']} dropped"
+    )
     if stats["samples"] < 1000:
         print("too little data to analyse")
         return
 
     if args.save:
-        np.savez_compressed(args.save, rows=rows, rate_hz=effective,
-                            filter_code=args.filter,
-                            filter_cutoff_hz=np.array(cutoff, dtype=object),
-                            force_unit=config["force_unit"], torque_unit=config["torque_unit"])
+        np.savez_compressed(
+            args.save,
+            rows=rows,
+            rate_hz=effective,
+            filter_code=args.filter,
+            filter_cutoff_hz=np.array(cutoff, dtype=object),
+            force_unit=config["force_unit"],
+            torque_unit=config["torque_unit"],
+        )
         print(f"  raw capture -> {args.save}")
 
-    report, spectra, ratio = analyse(rows, effective, args.target_hz,
-                                     config["force_unit"], config["torque_unit"])
+    report, spectra, ratio = analyse(
+        rows, effective, args.target_hz, config["force_unit"], config["torque_unit"]
+    )
     print_report(report, args.target_hz)
     if report and not args.no_plot:
         plot(rows, report, spectra, effective, args.target_hz, ratio, args.output)
