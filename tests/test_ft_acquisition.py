@@ -166,3 +166,49 @@ def test_diagnostic_demo_runs_without_commanding_motion(tmp_path):
         assert any(r['type'] == 'cycle' for r in rows)
     finally:
         server.stop(None).wait()
+
+
+def test_recent_ft_bootstrap_does_not_start_from_zero_cursor():
+    from types import SimpleNamespace
+
+    from sawyer_control.experiments.acquisition import _wait_for_recent_ft
+
+    class FullBufferClient:
+        def __init__(self):
+            self.calls = []
+
+        def window(self, **kwargs):
+            self.calls.append(kwargs)
+            history = SimpleNamespace(session_id='session-1', newest_id=42000)
+            if kwargs.get('window_s'):
+                return SimpleNamespace(
+                    valid=False,
+                    reasons=['no_samples'],
+                    reader_error='',
+                    history=history,
+                )
+            assert kwargs['session_id'] == 'session-1'
+            assert kwargs['after_id'] == 41999
+            return SimpleNamespace(
+                valid=True,
+                reasons=[],
+                reader_error='',
+                history=history,
+            )
+
+    ft = FullBufferClient()
+    result = _wait_for_recent_ft(
+        ft,
+        max_age_s=0.1,
+        timeout_s=0.25,
+        start_timeout_s=0.2,
+    )
+
+    assert result.valid
+    assert result.history.newest_id == 42000
+    assert len(ft.calls) == 2
+    assert ft.calls[0]['window_s'] == pytest.approx(0.02)
+    assert 'after_id' not in ft.calls[0]
+    assert ft.calls[1]['after_id'] == 41999
+    assert ft.calls[1]['limit'] == 1
+
