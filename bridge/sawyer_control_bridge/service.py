@@ -213,6 +213,13 @@ class ForceTorqueService(control_pb2_grpc.ForceTorqueServicer):
             **fields,
         )
 
+    def ClearHistory(self, request, context):
+        sensor = self._runtime.get_force_torque()
+        if sensor is None:
+            context.abort(grpc.StatusCode.UNAVAILABLE, 'Force-torque sensor is unavailable')
+            raise RuntimeError('context.abort() unexpectedly returned')
+        return control_pb2.HistoryInfo(**sensor.clear_history())
+
     def Zero(self, request, context):
         sensor = self._runtime.get_force_torque()
 

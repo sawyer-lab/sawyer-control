@@ -57,6 +57,7 @@ class StaticAcquisitionSettings:
     max_age_ms: float = 100.0
     timeout_s: float = 0.25
     require_joint_state: bool = False
+    clear_history: bool = True
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,7 @@ class TrajectoryExperimentSettings:
     ft_query_limit: int = 35000
     joint_query_limit: int = 10000
     acquisition_start_timeout_s: float = 8.0
+    clear_history: bool = True
     plot: bool = False
     show_plot: bool = False
     approach: SmoothMoveSettings = SmoothMoveSettings()
@@ -188,6 +190,7 @@ def acquire_static(
                             "sensor_rate_hz": sensor_rate_hz,
                             "filter_code": filter_code,
                             "zero": zero,
+                            "clear_history": settings.clear_history,
                         },
                         "original_settings": proto_dict(original_settings),
                         "original_communications": proto_dict(original_comms),
@@ -198,12 +201,28 @@ def acquire_static(
                     }
                 )
 
-                initial = _wait_for_recent_ft(
-                    ft,
-                    max_age_s=settings.max_age_ms / 1000,
-                    timeout_s=settings.timeout_s,
-                    start_timeout_s=8.0,
-                )
+                history_clear = None
+                if settings.clear_history:
+                    history_clear, initial = _clear_and_wait_for_fresh_ft(
+                        ft,
+                        window_s=max(1.0 / settings.poll_rate_hz, settings.window_ms / 1000),
+                        max_age_s=settings.max_age_ms / 1000,
+                        timeout_s=settings.timeout_s,
+                        start_timeout_s=8.0,
+                    )
+                else:
+                    initial = _wait_for_recent_ft(
+                        ft,
+                        max_age_s=settings.max_age_ms / 1000,
+                        timeout_s=settings.timeout_s,
+                        start_timeout_s=8.0,
+                    )
+                record({
+                    "type": "history_clear",
+                    "requested": settings.clear_history,
+                    "boundary": None if history_clear is None else proto_dict(history_clear),
+                    "initial_history": proto_dict(initial.history),
+                })
 
                 # Start at the current tail of the bridge history. The bootstrap
                 # query is intentionally a recent time window, not after_id=0,
@@ -345,6 +364,10 @@ def acquire_static(
                     "joint_rpc_errors": joint_errors,
                     "missed_deadlines": missed,
                     "duplicate_windows": duplicate_windows,
+                    "history_cleared": history_clear is not None,
+                    "history_clear_cutoff_id": (
+                        None if history_clear is None else int(history_clear.next_id)
+                    ),
                     "ft_rpc_ms": metric(ft_rtts),
                     "joint_rpc_ms": metric(joint_rtts),
                     "data_age_ms": metric(ages),
@@ -371,6 +394,65 @@ def acquire_static(
                         failures.append(f"{exc.code().name}: {exc.details()}")
                 if failures:
                     raise RuntimeError("Settings restoration failed: " + "; ".join(failures))
+
+
+def _clear_and_wait_for_fresh_ft(
+    ft: ForceTorqueClient,
+    *,
+    window_s: float,
+    max_age_s: float,
+    timeout_s: float,
+    start_timeout_s: float,
+) -> tuple[Any, Any]:
+    """Clear once, then accept only a full new F/T interval after the cut."""
+    boundary = ft.clear_history(timeout=max(1.0, timeout_s))
+    if (
+        not boundary.session_id
+        or not boundary.clock_id
+        or boundary.server_ns <= 0
+        or boundary.next_id < 0
+    ):
+        raise RuntimeError('ClearHistory returned invalid F/T history metadata')
+
+    deadline = time.monotonic() + start_timeout_s
+    minimum_end_ns = int(boundary.server_ns) + round(window_s * 1e9)
+    latest = None
+    last_rpc_error = None
+    while time.monotonic() < deadline:
+        try:
+            latest = ft.window(
+                session_id=boundary.session_id,
+                after_id=boundary.next_id,
+                clock_id=boundary.clock_id,
+                max_age_s=max_age_s,
+                limit=1000,
+                timeout=timeout_s,
+            )
+            last_rpc_error = None
+        except grpc.RpcError as exc:
+            if exc.code() in (grpc.StatusCode.DEADLINE_EXCEEDED, grpc.StatusCode.UNAVAILABLE):
+                last_rpc_error = f'{exc.code().name}: {exc.details()}'
+                time.sleep(0.05)
+                continue
+            raise
+
+        history = latest.history
+        if (
+            history.session_changed
+            or history.cursor_ahead
+            or history.session_id != boundary.session_id
+            or history.clock_id != boundary.clock_id
+        ):
+            raise RuntimeError('F/T history session changed after ClearHistory')
+        if latest.valid and history.newest_id > boundary.next_id and latest.last_ns >= minimum_end_ns:
+            return boundary, latest
+        time.sleep(0.01)
+
+    reasons = list(latest.reasons) if latest is not None else []
+    raise RuntimeError(
+        'No complete fresh F/T window after ClearHistory: '
+        f'reasons={reasons}, last_rpc_error={last_rpc_error}'
+    )
 
 
 def _wait_for_recent_ft(
@@ -913,6 +995,7 @@ def run_trajectory_experiment(
             "sensor_settings_at_start": proto_dict(original_settings),
             "sensor_communications_at_start": proto_dict(original_comms),
             "bias_note": "bias is never changed by run_trajectory_experiment",
+            "clear_history_requested": settings.clear_history,
         }
         write_json(actual_session_dir / "metadata.json", session_metadata)
 
@@ -931,7 +1014,17 @@ def run_trajectory_experiment(
                 )
                 time.sleep(settings.settle_s)
 
-                ft_initial = _wait_for_valid_ft(ft, settings=settings)
+                history_clear = None
+                if settings.clear_history:
+                    history_clear, ft_initial = _clear_and_wait_for_fresh_ft(
+                        ft,
+                        window_s=1.0 / settings.ft_poll_hz,
+                        max_age_s=settings.max_age_s,
+                        timeout_s=settings.rpc_timeout_s,
+                        start_timeout_s=settings.acquisition_start_timeout_s,
+                    )
+                else:
+                    ft_initial = _wait_for_valid_ft(ft, settings=settings)
                 joint_initial = _latest_joint_cursor(robot)
                 if ft_initial.history.clock_id != joint_initial.clock_id:
                     raise RuntimeError(
@@ -1000,6 +1093,10 @@ def run_trajectory_experiment(
                     "pre_roll_s": settings.pre_roll_s,
                     "post_roll_s": settings.post_roll_s,
                     "ft_start_history": proto_dict(ft_initial.history),
+                    "history_clear": {
+                        "requested": settings.clear_history,
+                        "boundary": None if history_clear is None else proto_dict(history_clear),
+                    },
                     "joint_start_state": proto_dict(joint_initial),
                     "summary": summary,
                     "play_error": play_error,

@@ -747,6 +747,12 @@ class ForceTorqueStub:
             response_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtWindow.FromString,
             _registered_method=True,
         )
+        self.ClearHistory = channel.unary_unary(
+            "/sawyer.control.v1.ForceTorque/ClearHistory",
+            request_serializer=sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            response_deserializer=sawyer__control_dot_v1_dot_control__pb2.HistoryInfo.FromString,
+            _registered_method=True,
+        )
 
 
 class ForceTorqueServicer:
@@ -776,6 +782,12 @@ class ForceTorqueServicer:
         context.set_details("Method not implemented!")
         raise NotImplementedError("Method not implemented!")
 
+    def ClearHistory(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details("Method not implemented!")
+        raise NotImplementedError("Method not implemented!")
+
 
 def add_ForceTorqueServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -798,6 +810,11 @@ def add_ForceTorqueServicer_to_server(servicer, server):
             servicer.GetWindow,
             request_deserializer=sawyer__control_dot_v1_dot_control__pb2.FtWindowRequest.FromString,
             response_serializer=sawyer__control_dot_v1_dot_control__pb2.FtWindow.SerializeToString,
+        ),
+        "ClearHistory": grpc.unary_unary_rpc_method_handler(
+            servicer.ClearHistory,
+            request_deserializer=sawyer__control_dot_v1_dot_control__pb2.Empty.FromString,
+            response_serializer=sawyer__control_dot_v1_dot_control__pb2.HistoryInfo.SerializeToString,
         ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -920,6 +937,36 @@ class ForceTorque:
             "/sawyer.control.v1.ForceTorque/GetWindow",
             sawyer__control_dot_v1_dot_control__pb2.FtWindowRequest.SerializeToString,
             sawyer__control_dot_v1_dot_control__pb2.FtWindow.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True,
+        )
+
+    @staticmethod
+    def ClearHistory(
+        request,
+        target,
+        options=(),
+        channel_credentials=None,
+        call_credentials=None,
+        insecure=False,
+        compression=None,
+        wait_for_ready=None,
+        timeout=None,
+        metadata=None,
+    ):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            "/sawyer.control.v1.ForceTorque/ClearHistory",
+            sawyer__control_dot_v1_dot_control__pb2.Empty.SerializeToString,
+            sawyer__control_dot_v1_dot_control__pb2.HistoryInfo.FromString,
             options,
             channel_credentials,
             insecure,

@@ -27,6 +27,8 @@ class _ForceTorque(control_pb2_grpc.ForceTorqueServicer):
 
     def Zero(self, request, context):
         return control_pb2.CommandResult(success=True)
+    def ClearHistory(self, request, context):
+        return control_pb2.HistoryInfo(session_id='same', next_id=42)
 
 
 class _Camera(control_pb2_grpc.CameraServicer):
@@ -63,6 +65,7 @@ def test_sensor_clients_are_independent(address):
     with ForceTorqueClient.connect(address) as force_torque:
         assert force_torque.read().fz == 3.5
         force_torque.zero()
+        assert force_torque.clear_history().next_id == 42
     with CameraClient.connect(address) as camera:
         camera.start_hand()
         assert camera.read_hand().data == b"frame"

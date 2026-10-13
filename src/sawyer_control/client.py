@@ -211,6 +211,14 @@ class ForceTorqueClient(_Client):
     def read(self):
         return self._api.GetReading(control_pb2.Empty())
 
+    def clear_history(self, *, timeout: float = 1.0):
+        """Clear bridge history, preserving ATI zero, sample IDs and session.
+
+        Returns the cursor boundary. Other clients sharing this buffer may
+        observe history loss; call only before starting a dedicated trial.
+        """
+        return self._api.ClearHistory(control_pb2.Empty(), timeout=timeout)
+
     def zero(self) -> None:
         SawyerRobotClient._require(self._api.Zero(control_pb2.Empty()))
 

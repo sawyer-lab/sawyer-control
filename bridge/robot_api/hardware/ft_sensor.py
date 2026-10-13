@@ -112,6 +112,10 @@ class FTSensorManager:
 
             return False
 
+    def clear_history(self):
+        """Discard bridge-side sample history without touching ATI bias or RDT."""
+        return self.buffer.clear_history()
+
     def query(self, max_age_s=0.1, **kwargs):
         error = "stopped" if self._stop.is_set() else self._error
         result = summarize(self.buffer.query(**kwargs), max_age_s, error)

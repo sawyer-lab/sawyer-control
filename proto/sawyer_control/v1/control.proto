@@ -17,7 +17,7 @@ service RobotControl {
   rpc CloseGripper(Empty) returns (CommandResult);
   rpc GetGripperState(Empty) returns (GripperState);
 }
-service ForceTorque { rpc GetReading(Empty) returns (ForceTorqueReading); rpc StreamReadings(StreamReadingsRequest) returns (stream ForceTorqueReading); rpc Zero(Empty) returns (CommandResult); rpc GetWindow(FtWindowRequest) returns (FtWindow); }
+service ForceTorque { rpc GetReading(Empty) returns (ForceTorqueReading); rpc StreamReadings(StreamReadingsRequest) returns (stream ForceTorqueReading); rpc Zero(Empty) returns (CommandResult); rpc GetWindow(FtWindowRequest) returns (FtWindow); rpc ClearHistory(Empty) returns (HistoryInfo); }
 // Config plane: the sensor's HTTP settings, persisted in the device across
 // reboots. Separate from ForceTorque because it is a different transport and a
 // different latency class. Mechanism only - the bridge applies no defaults and

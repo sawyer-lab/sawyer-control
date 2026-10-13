@@ -34,6 +34,28 @@ class SampleBuffer:
             self._session = uuid.uuid4().hex
             self._coverage_start_ns = time.monotonic_ns()
 
+    def clear_history(self):
+        """Atomically discard saved samples without changing IDs or acquisition identity.
+
+        The return value is the exact boundary for a new session-preserving
+        cursor: query with after_id=next_id, session_id, and clock_id. A UDP
+        append may follow immediately after the lock is released.
+        """
+        with self._lock:
+            cleared_at_ns = time.monotonic_ns()
+            last_id = self._next - 1
+            self._rows.clear()
+            self._evicted_through_ns = 0
+            self._coverage_start_ns = cleared_at_ns
+            return {
+                'clock_id': CLOCK_ID,
+                'session_id': self._session,
+                'server_ns': cleared_at_ns,
+                'oldest_id': self._next,
+                'newest_id': last_id,
+                'next_id': last_id,
+            }
+
     def append(self, payload, received_ns=None):
         stamp = time.monotonic_ns() if received_ns is None else received_ns
         with self._lock:

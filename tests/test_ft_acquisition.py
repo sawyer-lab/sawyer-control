@@ -55,6 +55,29 @@ def test_half_open_window_and_coverage():
     assert b.query(start_ns=1)['incomplete_window']
 
 
+def test_clear_history_keeps_cursor_and_session_but_rejects_old_samples():
+    buffer = SampleBuffer(8)
+    for value in (1, 2, 3):
+        buffer.append(row(value))
+    before = buffer.query()
+    boundary = buffer.clear_history()
+    assert boundary['session_id'] == before['session_id']
+    assert boundary['clock_id'] == CLOCK_ID
+    assert boundary['newest_id'] == 3
+    assert boundary['next_id'] == 3
+    assert buffer.latest() is None
+    empty = buffer.query(session_id=boundary['session_id'], after_id=3)
+    assert not empty['overflow'] and empty['rows'] == []
+    assert buffer.query(start_ns=boundary['server_ns']-1)['incomplete_window']
+    appended = buffer.append(row(7))
+    assert appended['sample_id'] == 4
+    fresh = buffer.query(session_id=boundary['session_id'], after_id=3)
+    assert [r['sample_id'] for r in fresh['rows']] == [4]
+    old = buffer.query(session_id=boundary['session_id'], after_id=1)
+    assert old['overflow']
+    assert [r['sample_id'] for r in old['rows']] == [4]
+
+
 @pytest.mark.parametrize('kind', ['empty', 'fault', 'loss', 'stale', 'mixed', 'reader'])
 def test_invalid_data_never_becomes_zero_or_valid_mean(kind):
     b = SampleBuffer()
@@ -72,6 +95,8 @@ class Sensor:
     def __init__(self):
         self.buffer = SampleBuffer()
         self.buffer.append(row(6))
+    def clear_history(self):
+        return self.buffer.clear_history()
     def query(self, max_age_s=.1, **kwargs):
         return dict(summarize(self.buffer.query(**kwargs), max_age_s), reader_error='')
 
@@ -113,6 +138,26 @@ def test_window_round_trip_and_independent_consumers(clients):
     assert not empty.valid and list(empty.mean) == []
 
 
+def test_clear_history_grpc_round_trip_and_continuity(clients):
+    ft, _, runtime = clients
+    before = ft.window(max_age_s=1).history
+    assert before.newest_id == 1
+    boundary = ft.clear_history()
+    assert boundary.clock_id == before.clock_id
+    assert boundary.session_id == before.session_id
+    assert boundary.next_id == 1
+    assert runtime.sensor.buffer.latest() is None
+    next_row = runtime.sensor.buffer.append(row(8))
+    assert next_row['sample_id'] == 2
+    fresh = ft.window(session_id=boundary.session_id, after_id=boundary.next_id,
+                      include_samples=True, max_age_s=1)
+    assert fresh.valid and len(fresh.samples) == 1
+    assert fresh.samples[0].sample_id == 2
+    assert list(fresh.mean) == [8] * 6
+    assert ft.window(session_id=boundary.session_id, after_id=0,
+                     include_samples=True).history.overflow
+
+
 def test_explicit_clock_validation_and_deadline(clients):
     ft, _, _ = clients
     with pytest.raises(grpc.RpcError) as e:
@@ -152,6 +197,19 @@ def test_diagnostic_demo_runs_without_commanding_motion(tmp_path):
     control_pb2_grpc.add_ForceTorqueConfigServicer_to_server(ForceTorqueConfigService(runtime), server)
     port = server.add_insecure_port('127.0.0.1:0')
     server.start()
+    # The real ATI streams continuously; the test double must do the same
+    # because clearing history intentionally discards all existing samples.
+    import threading
+    alive = threading.Event()
+    alive.set()
+
+    def publish():
+        while alive.is_set():
+            runtime.sensor.buffer.append(row(6))
+            time.sleep(0.002)
+
+    publisher = threading.Thread(target=publish, daemon=True)
+    publisher.start()
     try:
         script = Path(__file__).resolve().parents[1]/'scripts/demo/ft_acquisition.py'
         result = subprocess.run([sys.executable, str(script), '--bridge', f'127.0.0.1:{port}',
@@ -165,6 +223,8 @@ def test_diagnostic_demo_runs_without_commanding_motion(tmp_path):
         assert rows[-1]['type'] == 'summary'
         assert any(r['type'] == 'cycle' for r in rows)
     finally:
+        alive.clear()
+        publisher.join(timeout=1.0)
         server.stop(None).wait()
 
 
@@ -212,3 +272,56 @@ def test_recent_ft_bootstrap_does_not_start_from_zero_cursor():
     assert ft.calls[1]['after_id'] == 41999
     assert ft.calls[1]['limit'] == 1
 
+
+
+def test_clear_history_waits_for_complete_fresh_window():
+    from types import SimpleNamespace
+    from sawyer_control.experiments.acquisition import _clear_and_wait_for_fresh_ft
+
+    boundary = SimpleNamespace(session_id='session', clock_id='clock', server_ns=1_000_000_000, next_id=42)
+    calls = []
+
+    class Client:
+        def clear_history(self, *, timeout):
+            calls.append(('clear', timeout))
+            return boundary
+
+        def window(self, **kwargs):
+            calls.append(('window', kwargs))
+            assert kwargs['after_id'] == 42
+            assert kwargs['session_id'] == 'session'
+            assert kwargs['clock_id'] == 'clock'
+            count = len([c for c in calls if c[0] == 'window'])
+            return SimpleNamespace(
+                valid=True, last_ns=1_005_000_000 if count == 1 else 1_012_000_000,
+                history=SimpleNamespace(session_id='session', clock_id='clock', newest_id=44,
+                                        session_changed=False, cursor_ahead=False),
+            )
+
+    returned, initial = _clear_and_wait_for_fresh_ft(
+        Client(), window_s=0.01, max_age_s=0.1, timeout_s=0.2, start_timeout_s=1.0,
+    )
+    assert returned is boundary
+    assert initial.last_ns == 1_012_000_000
+    assert len([c for c in calls if c[0] == 'window']) == 2
+
+
+def test_clear_history_rejects_old_session():
+    from types import SimpleNamespace
+    from sawyer_control.experiments.acquisition import _clear_and_wait_for_fresh_ft
+
+    class Client:
+        def clear_history(self, *, timeout):
+            return SimpleNamespace(session_id='original', clock_id='clock', server_ns=100, next_id=20)
+
+        def window(self, **kwargs):
+            return SimpleNamespace(
+                valid=True, last_ns=100000000,
+                history=SimpleNamespace(session_id='changed', clock_id='clock', newest_id=21,
+                                        session_changed=True, cursor_ahead=False),
+            )
+
+    with pytest.raises(RuntimeError, match='session changed'):
+        _clear_and_wait_for_fresh_ft(
+            Client(), window_s=0.01, max_age_s=0.1, timeout_s=0.2, start_timeout_s=1.0,
+        )
