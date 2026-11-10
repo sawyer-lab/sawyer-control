@@ -70,6 +70,44 @@ with ForceTorqueClient.connect() as force_torque:
 `SawyerRobotClient`, `CameraClient`, and `ForceTorqueClient` are independent
 clients. Only the robot client carries motion and lifecycle commands.
 
+## Logitech camera
+
+The Logitech USB camera is not part of the robot, so it has its own driver and
+needs neither the bridge nor a robot on the network:
+
+```python
+from sawyer_control import Camera
+
+Camera.snapshot("frame.jpg")              # one picture
+
+with Camera.open() as camera:             # several
+    camera.save("before.jpg")
+    image = camera.frame()                # BGR numpy array
+
+with Camera.open(fps=60) as camera:       # video
+    with camera.record("toss.avi") as recording:
+        ...
+    clip = recording.clip
+    print(clip.frame_count, clip.effective_fps)
+```
+
+Recording writes the video and a `.json` manifest holding a timestamp for
+every frame, which is what lets a clip be lined up with joint states or
+force/torque afterwards.
+
+Install OpenCV for it with `pip install -e '.[camera]'`, then try:
+
+```bash
+python scripts/demo/logitech_camera.py info
+python scripts/demo/logitech_camera.py photo frame.jpg
+python scripts/demo/logitech_camera.py video toss.avi --seconds 5 --fps 60
+```
+
+The same camera is also reachable over gRPC as `CameraClient.read_brio()`,
+which is worth using when the camera is plugged into the bridge host and the
+program runs somewhere else. Details and measured frame rates are in
+[docs/LOGITECH_CAMERA.md](docs/LOGITECH_CAMERA.md).
+
 The bridge never enables, resets, stops, moves, or zeroes hardware unless a
 client explicitly calls the corresponding operation. Joint commands are sent
 one command at a time in position, velocity, torque, or trajectory mode.

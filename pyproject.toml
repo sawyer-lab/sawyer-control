@@ -11,9 +11,11 @@ dependencies = ["grpcio>=1.66.2", "numpy>=1.24", "protobuf>=5.27"]
 
 [project.optional-dependencies]
 bridge = []
-dev = ["grpcio-tools==1.66.2", "pytest>=8", "matplotlib>=3.7"]
+dev = ["grpcio-tools==1.66.2", "pytest>=8", "matplotlib>=3.7", "opencv-python>=4.8"]
 # The demo tools under scripts/demo plot their results.
 demo = ["matplotlib>=3.7"]
+# The Logitech USB camera driver in sawyer_control.camera.
+camera = ["opencv-python>=4.8"]
 
 [project.scripts]
 sawyer-control = "sawyer_control.cli:main"
