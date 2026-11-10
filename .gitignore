@@ -9,6 +9,7 @@ build/
 docker/docker-compose.override.yml
 
 # Capture artifacts from scripts/demo — data, not source
+/camera_runs/
 *.npz
 /ft_step*.png
 /ft_compare*.png

@@ -98,10 +98,17 @@ force/torque afterwards.
 Install OpenCV for it with `pip install -e '.[camera]'`, then try:
 
 ```bash
+python scripts/demo/logitech_camera_tour.py          # start here
 python scripts/demo/logitech_camera.py info
 python scripts/demo/logitech_camera.py photo frame.jpg
 python scripts/demo/logitech_camera.py video toss.avi --seconds 5 --fps 60
 ```
+
+The tour walks through the whole driver once and explains each step: what
+the camera agreed to, one frame on screen, a picture and a clip stored in a
+timestamped folder, and what the clip's manifest is for. It is the quickest
+way to tell whether a newly plugged-in camera works. `logitech_camera.py` is
+the terse tool for when you already know what you want.
 
 The same camera is also reachable over gRPC as `CameraClient.read_brio()`,
 which is worth using when the camera is plugged into the bridge host and the
